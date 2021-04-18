@@ -4,11 +4,11 @@
     - [seL4 Capability与FreeRTOS的关系](#sel4-capability与freertos的关系)
       - [CSpace](#cspace)
       - [Message Passing(IPC)](#message-passingipc)
-    - [Threads](#threads)
-      - [scheduling](#scheduling)
-      - [scheduling contexts](#scheduling-contexts)
-      - [调度算法](#调度算法)
-      - [异常](#异常)
+      - [Threads](#threads)
+        - [scheduling](#scheduling)
+        - [scheduling contexts](#scheduling-contexts)
+        - [调度算法](#调度算法)
+        - [异常](#异常)
       - [Notification](#notification)
       - [VSpace](#vspace)
       - [Fault](#fault)
@@ -99,7 +99,7 @@ reply cap的唤起是非阻塞的，同时它也不归属于谁(或者说可以�
 
 错误并不会导致整个传输的失败，而是会将在错误发生之前的传输成功，将失败的传输通过`extraCaps`写入接受者的IPC buffer
 
-### Threads
+#### Threads
 
 MCS configuration | SMP configuration of the kernel
 
@@ -107,14 +107,14 @@ TCB(thread control block)
 - CSpace & VSpace(shared with other thread)
 - IPC buffer to transfer caps
 
-#### scheduling
+##### scheduling
 
 -   preemtive, tickless scheduler with 256 priority levels
 -   thread's priority
     -   priority
     -   Max controlled priority
 
-#### scheduling contexts
+##### scheduling contexts
 
 -   (budgets, period) - (b, p)
 -   RR scheduling
@@ -125,11 +125,11 @@ TCB(thread control block)
 passive thread没有scheduling contexts
 
 
-#### 调度算法
+##### 调度算法
 
 只有拥有`active scheduling contexts`的线程才可被调度
 
-#### 异常
+##### 异常
 
 分为标准异常和超时异常
 
