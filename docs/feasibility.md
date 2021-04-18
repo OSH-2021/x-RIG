@@ -103,7 +103,7 @@ reply cap的唤起是非阻塞的，同时它也不归属于谁(或者说可以�
 
 MCS configuration | SMP configuration of the kernel
 
-TCB(thread control block) 
+TCB(thread control block)
 - CSpace & VSpace(shared with other thread)
 - IPC buffer to transfer caps
 
@@ -339,7 +339,7 @@ qemu-system-arm -M versatilepb -nographic -m 128 -kernel image.bin
 STM32Cube可以生成所选芯片的MakeFile，在本地`make`后，利用工具链`arm-none-gcc`
 ```bash
 arm-none-eabi-objcopy -O binary -S build/for_stm32f429.elf build/for_stm32f429.bin
-``` 
+```
 之后使用`qemu-system-gnuarmeclipse`可以运行出结果
 
 ## 项目开发路线
@@ -354,7 +354,11 @@ arm-none-eabi-objcopy -O binary -S build/for_stm32f429.elf build/for_stm32f429.b
 + 学习SMP，实现多核的移植，如果可以，也希望不损失效率的前提下，模块化地实现
 + 鉴于调研到的内容比较多，考虑到可行性，多核的移植我们仅作为最深的目标，尽量完成
 ## 创新点
-TODO
+随着计算机技术的发展，嵌入式实时系统在众多领域得到广泛应用。相比于单核处理器，多核处理器能够使嵌入式系统获得更高的性能。
+
+Rust引入了独特的语言机制，可以在编译期进行内存安全检查，突破性地解决了系统软件中的内存安全问题。同时它还具有现代语言中常见的编程范式。是编写操作系统的良好工具。
+
+互联网日益普及，缺乏良好的安全机制无疑是操作系统的一大弊端，sel4的capability机制有一定的优越性，且sel4和FreeRTOS较为相似，将sel4的capability机制添加到FreeRTOS是有意义的。
 ## 参考文献
 - [A Multi-Core Version of FreeRTOS Verified for Datarace and Deadlock Freedom](https://dl.acm.org/doi/abs/10.1002/spe.2188)
 - [μc/OSII扩展到多核](https://kns.cnki.net/kcms/detail/detail.aspx?dbcode=CMFD&dbname=CMFD2012&filename=1011292401.nh&v=QzVMjO8gx9HNLh3IotQypnFPpd9WDV5fxMZBcaZ3bpzlWfQZBJJTvqLrpbCEPZ4H)
