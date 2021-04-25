@@ -44,11 +44,13 @@
 
 | seL4 object               | FreeRTOS part      |
 | ------------------------- | ------------------ |
-| Endpoints & Reply objects | queue&semaphore    |
-| Thread Control Block(TCB) | task control block |
-| scheduling context        | task schedule      |
-| Interrupt object          | queue              |
-| Notification              | Notification       |
+| Endpoints & Reply objects | queue&semaphore(queue.rs, queue_h.rs, queue_api.rs, semaphore.rs)    |
+| Thread Control Block(TCB) | task control block(task_control.rs) |
+| scheduling context        | task schedule(kernel.rs)      |
+| Interrupt object          | queue, C library              |
+| Notification              | Notification(目前未实现)       |
+|CSpace|目前未实现|
+
 
 > 其他如Untyped Memory和CNode为capability机制特有的，或者FreeRTOS不存在这部分，如VSpace
 
