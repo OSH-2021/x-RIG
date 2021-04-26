@@ -1,7 +1,9 @@
 # 可行性报告
 - [可行性报告](#可行性报告)
+  - [项目介绍](#项目介绍)
   - [理论依据](#理论依据)
-    - [seL4 Capability与FreeRTOS的关系](#sel4-capability与freertos的关系)
+    - [FreeRTOS 架构](#freertos-架构)
+    - [seL4与FreeRTOS异同](#sel4与freertos异同)
       - [CSpace](#cspace)
       - [Message Passing(IPC)](#message-passingipc)
       - [Threads](#threads)
@@ -26,36 +28,20 @@
       - [条件编译](#条件编译)
     - [Multicore](#multicore)
   - [技术依据](#技术依据)
-    - [调试与运行环境](#调试与运行环境)
-      - [测试](#测试)
-      - [编译](#编译)
-      - [使用qemu仿真](#使用qemu仿真)
-      - [开发板环境仿真](#开发板环境仿真)
-  - [项目开发路线](#项目开发路线)
-    - [step1 rust-FreeRTOS的Rust版本迭代](#step1-rust-freertos的rust版本迭代)
-    - [step2 向FreeRTOS加入capability特性](#step2-向freertos加入capability特性)
-    - [step3 尝试移植到多核环境](#step3-尝试移植到多核环境)
+    - [QEMU Simulation](#qemu-simulation)
+  - [项目设计](#项目设计)
   - [创新点](#创新点)
   - [参考文献](#参考文献)
+## 项目介绍
+本项目以 ``FreeRTOS`` 为重点，主要完成以下3项内容：
+- 进行FreeRTOS的Rust版本迭代，
+- 将seL4的 ``capability`` 机制添加到 FreeRTOS 中，
+- 通过可加载模块实现FreeRTOS在多核处理器（如树莓派）上运行。
+
 ## 理论依据
-### seL4 Capability与FreeRTOS的关系
-[research.md](research.md)中介绍了seL4的kernel object以及capbilities
-
-其中各个object大致对应的FreeRTOS部分为
-
-| seL4 object               | FreeRTOS part                                                     |
-| ------------------------- | ----------------------------------------------------------------- |
-| Endpoints & Reply objects | queue&semaphore(queue.rs, queue_h.rs, queue_api.rs, semaphore.rs) |
-| Thread Control Block(TCB) | task control block(task_control.rs)                               |
-| scheduling context        | task schedule(kernel.rs)                                          |
-| Interrupt object          | queue, C library                                                  |
-| Notification              | Notification(目前未实现)                                          |
-| CSpace                    | 目前未实现                                                        |
-
-
-> 其他如Untyped Memory和CNode为capability机制特有的，或者FreeRTOS不存在这部分，如VSpace
-
-对于FreeRTOS中的TCB，主要涉及数据结构的改写和CSpace, IPC buffer的添加
+### FreeRTOS 架构
+TODO
+### seL4与FreeRTOS异同
 
 以下如果没有特殊说明，都是在seL4中的实现
 
@@ -106,7 +92,7 @@ reply cap的唤起是非阻塞的，同时它也不归属于谁(或者说可以�
 
 MCS configuration | SMP configuration of the kernel
 
-TCB(thread control block)
+TCB(thread control block) 
 - CSpace & VSpace(shared with other thread)
 - IPC buffer to transfer caps
 
@@ -177,12 +163,12 @@ cap错误可能发生在两个地方。首先，当seL4_Call()或seL4_Send()系�
 
 回复错误IPC消息可以使出错线程重新启动。IPC消息内容下表给出。
 
-| 含义                         | IPC缓冲区位置                   |
-| ---------------------------- | ------------------------------- |
-| 重启动地址                   | seL4_CapFault_IP                |
-| cap地址                      | seL4_CapFault_Addr              |
-| 是否发生在接收阶段(1是，0否) | seL4_CapFault_InRecvPhase       |
-| 查找失败信息描述             | seL4_CapFault_LookupFailureType |
+含义	|IPC缓冲区位置
+---|---
+重启动地址|	seL4_CapFault_IP
+cap地址	|seL4_CapFault_Addr
+是否发生在接收阶段(1是，0否)|	seL4_CapFault_InRecvPhase
+查找失败信息描述	|seL4_CapFault_LookupFailureType
 ##### 未知系统调用
 当线程使用seL4未知的``系统调用数``执行系统调用时，会发生此错误。出错线程的寄存器设置被传递给线程的错误处理程序，以便于，如在虚拟化应用场景时模拟一个系统调用。
 
@@ -197,12 +183,12 @@ cap错误可能发生在两个地方。首先，当seL4_Call()或seL4_Send()系�
 ##### Page Fault
 线程可能发生页错误，响应错误IPC可以重启出错线程。IPC消息内容在下表给出。
 
-| 含义                                      | IPC缓冲区位置              |
-| ----------------------------------------- | -------------------------- |
-| 重启的程序计数器                          | seL4_VMFault_IP            |
-| 导致错误的地址                            | seL4_VMFault_SP            |
-| 是否取指令错误(1是，0否)                  | seL4_VMFault_PrefetchFault |
-| 错误状态寄存器(FSR)。依赖于架构的错误原因 | seL4_VMFault_FSR           |
+| 含义 |	IPC缓冲区位置 |
+|---   |  ---        |
+|重启的程序计数器|	seL4_VMFault_IP|
+|导致错误的地址|	seL4_VMFault_SP|
+|是否取指令错误(1是，0否)|	seL4_VMFault_PrefetchFault|
+|错误状态寄存器(FSR)。依赖于架构的错误原因|	seL4_VMFault_FSR|
 
 #### 中断
 中断作为通知信号进行传递。线程可以配置内核在每次某个中断触发时，向特定通知对象发出信号。线程可以通过调用该通知对象上的seL4_Wait()或seL4_Poll()来等待中断的发生。
@@ -293,7 +279,7 @@ fn on_32bit_unix() {
 
 2. 运用锁实现对内核数据结构的互斥访问
 我们实现了一种基于位向量的锁定机制，以控制对内核数据结构的访问。内核数据结构，如运行列表、就绪列表、延迟列表等，在向量中被分配指定的位，如图5所示。其他特定于核心的资源，如pending ready list、pxCurrentTCB和pxNewTCB，都受到core-id上的锁的保护。这些锁是通过原子地修改这个位向量来获得和释放的。使用字长的位向量允许在单个CPU加载/存储指令中寻址整个向量。这样就可以在一瞬间检查向量并获取所有必要的锁，从而消除了等待等待的情况。
-TODO![](files/lock_bits.png)
+![这都啥啊？？](files/lock_bits.png)
 
 3. 调用调度程序
 在FreeRTOS中，调度程序通常作为每个API调用的一部分运行，也作为tick中断的ISR的一部分运行。在多核FreeRTOS中，调度采用两种不同的方法：Schedule和FullReschedule。前者用于调度一个新启用的任务，以取代优先级最低的运行任务。后者是调度例程，在所有内核上调度下一轮可运行任务。
@@ -301,61 +287,8 @@ TODO![](files/lock_bits.png)
 • FullReschedule is invoked by the tick ISR which resides on core 0. In the case that the task executing in core 0 has locked core 0,   the ISR will increment uxPendedTicks by 1 and exit. The FullReschedule will be invoked either by the tick ISR next time (if core 0 doesn’t hold its core lock) or by an API call, whichever happens first. This approach makes sure that a tick is never lost.
 
 ## 技术依据
-### 调试与运行环境
+### QEMU Simulation
 QEMU可以模拟多种多核处理器，因此我们可以方便地在QEMU上运行改造后的FreeRTOS，以测试其性能。
-
-环境采用目前工业主流的stm32板块
-#### 测试
-
-```
-rustup install nightly
-rustup default nightly
-cargo install cc
-cargo install bindgen
-sudo apt install clang
-cargo build
-cargo test
-```
-
-#### 编译
-+ 安装对应三元组配置
-  ```bash
-  rustup target add thumbv7m-none-eabi
-  ```
-+ 编译生成ELF文件
-  ```bash
-  cargo build --target=thumbv7m-none-eabi
-  ```
-+ binutils 工具集
-为了查看和分析生成的可执行文件，我们首先需要安装一套名为 binutils 的命令行工具集，其中包含了 objdump、objcopy 等常用工具。
-
-Rust 社区提供了一个 cargo-binutils 项目，可以帮助我们方便地调用 Rust 内置的 LLVM binutils。我们用以下命令安装它
-
-```bash
-cargo install cargo-binutils
-
-rustup component add llvm-tools-preview
-```
-+ 通过 objcopy 转换为二进制文件
-  生成的文件为ELF格式， 为能够加载到内存中实现，需要利用objcopy转换
-```bash
-objcopy -O binary os os.bin
-```
-
-#### 使用qemu仿真
-此处参考了GitHub上一个项目[**FreeRTOS-GCC-ARM926ejs**](https://github.com/jkovacic/FreeRTOS-GCC-ARM926ejs)
-使用
-```bash
-qemu-system-arm -M versatilepb -nographic -m 128 -kernel image.bin
-```
-即可进行仿真测试
-#### 开发板环境仿真
-此处则是需要利用`STM32Cube`生成芯片上的环境
-STM32Cube可以生成所选芯片的MakeFile，在本地`make`后，利用工具链`arm-none-gcc`
-```bash
-arm-none-eabi-objcopy -O binary -S build/for_stm32f429.elf build/for_stm32f429.bin
-```
-之后使用`qemu-system-gnuarmeclipse`可以运行出结果
 
 ## 项目开发路线
 ### step1 rust-FreeRTOS的Rust版本迭代
@@ -368,15 +301,11 @@ arm-none-eabi-objcopy -O binary -S build/for_stm32f429.elf build/for_stm32f429.b
 ### step3 尝试移植到多核环境
 + 学习SMP，实现多核的移植，如果可以，也希望不损失效率的前提下，模块化地实现
 + 鉴于调研到的内容比较多，考虑到可行性，多核的移植我们仅作为最深的目标，尽量完成
+
 ## 创新点
-随着计算机技术的发展，嵌入式实时系统在众多领域得到广泛应用。相比于单核处理器，多核处理器能够使嵌入式系统获得更高的性能。
-
-Rust引入了独特的语言机制，可以在编译期进行内存安全检查，突破性地解决了系统软件中的内存安全问题。同时它还具有现代语言中常见的编程范式。是编写操作系统的良好工具。
-
-互联网日益普及，缺乏良好的安全机制无疑是操作系统的一大弊端，sel4的capability机制有一定的优越性，且sel4和FreeRTOS较为相似，将sel4的capability机制添加到FreeRTOS是有意义的。
+TODO
 ## 参考文献
 - [A Multi-Core Version of FreeRTOS Verified for Datarace and Deadlock Freedom](https://dl.acm.org/doi/abs/10.1002/spe.2188)
 - [μc/OSII扩展到多核](https://kns.cnki.net/kcms/detail/detail.aspx?dbcode=CMFD&dbname=CMFD2012&filename=1011292401.nh&v=QzVMjO8gx9HNLh3IotQypnFPpd9WDV5fxMZBcaZ3bpzlWfQZBJJTvqLrpbCEPZ4H)
 - [Ownership is Theft: Experiences Building an Embedded OS in Rust](https://www.tockos.org/assets/papers/tock-plos2015.pdf)
 - [OS in Rust](https://www.infoq.com/presentations/os-rust/)
-- [seL4 manual](https://sel4.systems/Info/Docs/seL4-manual-latest.pdf)
