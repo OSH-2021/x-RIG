@@ -19,7 +19,7 @@ checking)
 - Specification/model based testing
 - ``Specification-based testing tools`` (seL4 has a spec (of course!))
 - ADLT (Sun Microsystem, 1993)
-![spec-based_tests](files/spec-based_tests.png)
+![spec-based_tests](../files/spec-based_tests.png)
 
 example (memcpy() specification template)
 ```c

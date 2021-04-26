@@ -29,7 +29,10 @@
     - [Multicore](#multicore)
   - [技术依据](#技术依据)
     - [QEMU Simulation](#qemu-simulation)
-  - [项目设计](#项目设计)
+  - [项目开发路线](#项目开发路线)
+    - [step1 rust-FreeRTOS的Rust版本迭代](#step1-rust-freertos的rust版本迭代)
+    - [step2 向FreeRTOS加入capability特性](#step2-向freertos加入capability特性)
+    - [step3 尝试移植到多核环境](#step3-尝试移植到多核环境)
   - [创新点](#创新点)
   - [参考文献](#参考文献)
 ## 项目介绍
@@ -56,7 +59,7 @@ seL4通过在满足`kernel`的内存需求之后，通过`Untyped Memory object`
 
 下图是object进行分配的示意图
 
-![](files/seL4/seL4_CDT.png)
+![](../files/seL4/seL4_CDT.png)
 
 `seL4_CNode_Delete()`删除一个cap，在只剩最后一个cap时删除整个CNode，内存会被释放，可以重用
 
@@ -275,11 +278,11 @@ fn on_32bit_unix() {
 - 事件队列：等待事件的任务的优先级队列，如消息队列中的消息到达。
 - pxCurrentTCB：指向当前正在执行的任务的指针。
 但我们还需要一些数据结构。因为有多个正在运行的任务，所以我们维护一个包含正在运行的任务的运行列表。此列表按优先级的递增顺序维护，在此范围内，按运行时间的递减顺序维护。
-![data structure](files/data_structure.png)
+![data structure](../files/data_structure.png)
 
 2. 运用锁实现对内核数据结构的互斥访问
 我们实现了一种基于位向量的锁定机制，以控制对内核数据结构的访问。内核数据结构，如运行列表、就绪列表、延迟列表等，在向量中被分配指定的位，如图5所示。其他特定于核心的资源，如pending ready list、pxCurrentTCB和pxNewTCB，都受到core-id上的锁的保护。这些锁是通过原子地修改这个位向量来获得和释放的。使用字长的位向量允许在单个CPU加载/存储指令中寻址整个向量。这样就可以在一瞬间检查向量并获取所有必要的锁，从而消除了等待等待的情况。
-![这都啥啊？？](files/lock_bits.png)
+![这都啥啊？？](../files/lock_bits.png)
 
 3. 调用调度程序
 在FreeRTOS中，调度程序通常作为每个API调用的一部分运行，也作为tick中断的ISR的一部分运行。在多核FreeRTOS中，调度采用两种不同的方法：Schedule和FullReschedule。前者用于调度一个新启用的任务，以取代优先级最低的运行任务。后者是调度例程，在所有内核上调度下一轮可运行任务。

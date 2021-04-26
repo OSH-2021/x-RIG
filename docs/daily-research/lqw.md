@@ -6,7 +6,7 @@
 
 MCS configuration | SMP configuration of the kernel
 
-TCB(thread control block) 
+TCB(thread control block)
 - CSpace & VSpace(shared with other thread)
 - IPC buffer to transfer caps
 
@@ -25,7 +25,7 @@ TCB(thread control block)
 
 -   b == p threads are treated as robin threads
 
-passive thread 
+passive thread
 
 ***
 4.14
@@ -125,7 +125,7 @@ seL4要求编程者管理所有内核内部的数据结构，要求用户者构�
 
 在创建新的CNode的时候，如果要求比源CNode的capability更多的capability，会自动将那些多的capability消除(downgrade)
 
-![seL4 CDT](files/seL4/seL4_CDT.png)
+![seL4 CDT](../files/seL4/seL4_CDT.png)
 
 Deletion and Revocation
 
@@ -136,9 +136,9 @@ Deletion and Revocation
 - [ ] Note that for page tables and page directories seL4_CNode_Revoke() will not revoke
 frame capabilities mapped into the address space. They will only be unmapped from the space.
 
-![CSpace Structure](files/seL4/CSpace_structure.png)
+![CSpace Structure](../files/seL4/CSpace_structure.png)
 
-![capability addressing](files/seL4/seL4Address.png)
+![capability addressing](../files/seL4/seL4Address.png)
 
 CNode需要address与depth limit，也就是它当前所处的位置已经用过的位数
 

@@ -17,7 +17,7 @@
 ## Components:(from wikipedia)
 
   The Docker software as a service offering consists of three components:
-  
+
   **software & objects & registries**
 
 <https://en.wikipedia.org/wiki/Docker_(software)>
