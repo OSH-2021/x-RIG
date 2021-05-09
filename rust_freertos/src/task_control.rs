@@ -543,7 +543,7 @@ impl TaskHandle {
             // We don't need to initialise task lists any more.
             let n_o_t = get_current_number_of_tasks!() + 1;
             set_current_number_of_tasks!(n_o_t);
-            /* CURRENT_TCB won't be None. See task_global.rs. */
+            /* CURRENT_TCB won't be None. See task_global.rs. */    //  ???
             if task_global::CURRENT_TCB.read().unwrap().is_none() {
                 set_current_task_handle!(self.clone());
                 if get_current_number_of_tasks!() != 1 {

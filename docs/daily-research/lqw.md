@@ -1,4 +1,40 @@
-# 研究seL4
+***
+5.9
+
+APIs
+
+```
+////  task_queue.rs
+将当前的task的event list item按照优先级降序排在相应的event list中
+参数：event_list，事件列表,ticks_to_wait让新加的item等一会???
+task_place_on_event_list()
+
+将当前的任务拥有的mutex增加
+返回：当前任务
+task_increment_mutex_held_count()
+
+当mutex holder的优先级小于现在要获得这个mutex的任务的优先级的时候，mutex holder会暂时继承这个要获得任务的优先级，这样可以防止medium优先级任务再次抢占高优先级任务
+参数：mutex_holder互斥量拥有者task
+task_priority_inherit(mutex_holder)
+
+
+暂时继承就意味着要回到原来的优先级，即disinherit
+返回true表示需要上下文切换。如果没有返回true，即在第一个mutex返回的时候没有进行上下文切换，则在最后一个mutex返回的时候，总会发生上下文切换，无论当前任务是不是在等待
+task_priority_disinherit(mutex_holder)
+
+////    task_control.rs
+将任务加入等待队列，如果该任务的优先级大于当前最高等待队列最高优先级，则设置等待队列最高优先级(TOP_READY_PRIORITY)为该任务的优先级，并且插入等待队列的最末端
+add_task_to_ready_list()
+
+将新任务加入ready list并且将`current_number_of_tasks`加1，然后启用调度器，如果调度器没有正在跑且新任务比原来正在跑的任务优先级大，那么就手动将该新任务变成当前任务
+add_new_task_to_ready_list()
+
+current task number与current task的区别
+```
+
+
+***
+## 研究seL4
 ***
 4.16
 

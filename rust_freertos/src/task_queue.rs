@@ -147,7 +147,7 @@ pub fn task_place_on_event_list(event_list: &ListLink, ticks_to_wait: TickType) 
     list::list_insert(event_list, unwrapped_cur.get_event_list_item());
     trace!("INSERT SUCCEEDED");
 
-    add_current_task_to_delayed_list(ticks_to_wait, true);
+    add_current_task_to_delayed_list(ticks_to_wait, true);  //  ???
     trace!("ADD SUCCEEDED");
 }
 
@@ -182,7 +182,7 @@ pub fn task_priority_inherit(mutex_holder: Option<TaskHandle>) {
         let current_task_priority = get_current_task_priority!();
         let this_task_priority = task.get_priority();
 
-        if this_task_priority < current_task_priority {     //  ???
+        if this_task_priority < current_task_priority {
             /* Adjust the mutex holder state to account for its new
             priority.  Only reset the event list item value if the value is
             not being used for anything else. */
