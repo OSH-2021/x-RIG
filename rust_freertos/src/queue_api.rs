@@ -31,7 +31,7 @@ where
 
     /// # Description:
     /// Create a new queue.
-    /// 
+    ///
     /// * Implemented by:Ning Yuting
     /// * C implementation:queue.h 186
     ///
@@ -49,13 +49,13 @@ where
 
     /// # Description
     /// Post an item to the front of a queue.
-    /// 
+    ///
     /// * Implemented by:Ning Yuting
     /// * C implementation: queue.h 521
     ///
     /// # Argument
     /// * `pvItemToQueue` - the item that is to be placed on the queue.
-    /// * `xTicksToWait` - The maximum amount of time the task should block waiting for space to 
+    /// * `xTicksToWait` - The maximum amount of time the task should block waiting for space to
     /// become available on the queue, should it already be full.
     ///
     /// # Return
@@ -69,7 +69,7 @@ where
 
     /// # Description
     /// Post an item to the front of a queue.
-    /// 
+    ///
     /// * Implemented by:Ning Yuting
     /// * C implementation:queue.h 355
     ///
@@ -77,7 +77,7 @@ where
     /// * `pvItemToQueue` - the item that is to be placed on the queue.
     /// * `xTicksToWait` - The maximum amount of time the task should block waiting for space to
     /// become available on the queue, should it already be full.
-    /// 
+    ///
     /// # Return
     /// Ok() if the item was successfully posted, otherwise errQUEUE_FULL.
     pub fn send_to_front(
@@ -99,9 +99,9 @@ where
     ///
     /// # Argument
     /// * `pvItemToQueue` - the item that is to be placed on the queue.
-    /// * `xTicksToWait` - The maximum amount of time the task should block waiting for space to 
+    /// * `xTicksToWait` - The maximum amount of time the task should block waiting for space to
     /// become available on the queue, should it already be full.
-    /// 
+    ///
     /// # Return
     /// Ok() if the item was successfully posted, otherwise errQUEUE_FULL.
     pub fn send_to_back(&self, pvItemToQueue: T, xTicksToWait: TickType) -> Result<(), QueueError> {
@@ -198,10 +198,10 @@ where
     /// * C implementation:queue.h 913
     ///
     /// # Argument
-    /// * `xTicksToWait` - The maximum amount of time the task should block 
+    /// * `xTicksToWait` - The maximum amount of time the task should block
     /// waiting for an item to receive should the queue be empty at the time
     /// of the call.It will return immediately if xTicksToWait is zero and the queue is empty.
-    /// 
+    ///
     /// # Return
     /// Ok(T) if an item was successfully received from the queue, otherwise QueueError::QueueEmpty.
     pub fn receive(&self, xTicksToWait: TickType) -> Result<T, QueueError> {
@@ -220,9 +220,9 @@ where
     /// * C implementation:queue.h 787
     ///
     /// # Argument
-    /// * `xTicksToWait` - The maximum amount of time the task should block 
+    /// * `xTicksToWait` - The maximum amount of time the task should block
     /// waiting for an item to receive should the queue be empty at the time of the call.
-    /// 
+    ///
     /// # Return
     /// Ok(T) if an item was successfully received from the queue, otherwise
     /// QueueError::QueueEmpty.

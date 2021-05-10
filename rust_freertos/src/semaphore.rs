@@ -56,11 +56,11 @@ impl Semaphore {
     /// Release a semaphore.
     ///
     /// * Implemented by:Ning Yuting & Lei Siqi
-    /// * C implementation:semphr.h 489 
+    /// * C implementation:semphr.h 489
     ///
     /// # Arguments:
     /// Nothing
-    /// 
+    ///
     /// # Return:
     /// Ok(T) if the semaphore was released, otherwise QueueError::QueueEmpty.
     pub fn semaphore_up(&self) -> Result<Option<TaskHandle>, QueueError> {
@@ -117,7 +117,7 @@ impl Semaphore {
     /// * C implementation:semphr.h 1039-1041
     ///
     /// # Arguments:
-    /// `max_count` - The maximum count value that can be reached. When the semaphore reaches 
+    /// `max_count` - The maximum count value that can be reached. When the semaphore reaches
     /// this value it can no longer be 'given'.
     ///
     /// # Return
@@ -161,7 +161,7 @@ impl Semaphore {
     ///
     /// # Arguments:
     /// Nothing
-    /// 
+    ///
     /// # Return
     /// `bool` - true if the recursive mutex was released.
     pub fn up_recursive(&self) -> bool {
@@ -212,7 +212,7 @@ impl Semaphore {
                     (*inner).QueueUnion_increase();
                     xReturn = false;
                 }
-            } 
+            }
             // else {
                 trace!("First Time get this mutex");
                 match (*inner).queue_generic_send(None, ticks_to_wait, queueSEND_TO_BACK) {
