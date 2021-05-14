@@ -7,7 +7,7 @@
 
 critical section
 
-```
+```c
 void vPortEnterCritical( void )
 {
 	vPortDisableInterrupts();
@@ -19,13 +19,38 @@ void vPortDisableInterrupts( void )
 	xInterruptsEnabled = pdFALSE;
 }
 
-```c
+```
+
+`get_handle_from_option`宏从`Option`中获取任务handle，如果参数为None，则返回当前任务的handle，然后对这个handle进行相应的操作
+
 
 `taskENTER_CRITICAL`, `taskEXIT_CRITICAL`就是进入临界区关中断，开中断
 
 uxCriticalNesting大概就是临界区嵌套深度，只有当临界区深度==0并退出临界区的时候，中断才会重新开始，否则，中断就不会被允许
 
 [uxCriticalNesting相关链接](https://freertos.org/FreeRTOS_Support_Forum_Archive/November_2005/freertos_uxCriticalNesting_1386799.html)
+
+`reset_next_task_unblock_time()`在队列为`delayed take list`为空的时候将`task_global::NEXT_TASK_UNBLOCK_TIME`设为最大值`portMAX_DELAY`，在延迟队列不空的时候获得头结点，`get_list_item_value`就可以获得它的从Blocked State移出的时间
+
+`task_delete()`
+
+删除任务需要进入临界区
+
+idle_task会删除释放被删除任务的内存
+
+1.  在该函数中获取首先handle，如果结果是None，则表示删除自己。
+2.  接着是从ready_list, event_list中删除handle
+3.  对于删除自己的任务，将其加入`TASKS_WAITING_TERMINATION`队列中，并且通过调用`set_deleted_tasks_waiting_clean_up!`宏将`DELETED_TASKS_WAITING_CLEAN_UP`添加使得idle task能够检查`TERMINATION`队列进行相应操作
+4.  对于删除其他任务，首先减少`task_number`，然后获取栈并释放掉，然后要重设下一个任务的unblock time
+5.  删除完之后要重新调度，如果删除的是当前任务，还要执行YIELD
+
+`task_suspend()`
+
+`task_issuspended()`判断是否被挂起
+
+`resume_task()`恢复被挂起的任务，如果有`configUSE_PREEMPTION`则执行`YIELD`
+
+
 
 
 ***

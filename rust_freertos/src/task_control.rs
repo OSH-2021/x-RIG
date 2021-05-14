@@ -815,7 +815,7 @@ macro_rules! get_handle_from_option {
 /// * Implemented by: Huang Yeqi
 ///
 /// # Arguments:
-///  `task_to_delete` The handle of the task to be deleted.  Passing NULL will
+///  `task_to_delete` The handle of the task to be deleted.  Passing None will
 ///  cause the calling task to be deleted.
 ///
 /// # Return:
@@ -846,9 +846,9 @@ pub fn task_delete(task_to_delete: Option<TaskHandle>) {
         detect that the task lists need re-generating.  This is done before
         portPRE_TASK_DELETE_HOOK() as in the Windows port that macro will
         not return. */
-        set_task_number!(get_task_number!() + 1);
+        set_task_number!(get_task_number!() + 1);   //  ???
 
-        if pxtcb == get_current_task_handle!() {
+        if pxtcb == get_current_task_handle!() {    //  ???
             /* A task is deleting itself.  This cannot complete within the
             task itself, as a context switch to another task is required.
             Place the task in the termination list.  The idle task will
@@ -878,7 +878,7 @@ pub fn task_delete(task_to_delete: Option<TaskHandle>) {
 
             /* Reset the next expected unblock time in case it referred to
             the task that has just been deleted. */
-            reset_next_task_unblock_time();
+            reset_next_task_unblock_time(); //  ???
         }
         // FIXME
         //traceTASK_DELETE!(task_to_delete);
@@ -887,7 +887,7 @@ pub fn task_delete(task_to_delete: Option<TaskHandle>) {
 
     /* Force a reschedule if it is the currently running task that has just
     been deleted. */
-    if get_scheduler_suspended!() > 0 {
+    if get_scheduler_suspended!() > 0 { //  ???
         if pxtcb == get_current_task_handle!() {
             assert!(get_scheduler_suspended!() == 0);
             portYIELD_WITHIN_API!();
