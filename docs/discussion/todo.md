@@ -3,6 +3,6 @@
 - [ ] queue_generics
 - [ ] queue
 - [ ] Weak Arc RC
-- [ ] prioity inversion
-- [ ] critical sections
+- [X] prioity inversion
+- [X] critical sections
 - [ ] 看剩下的

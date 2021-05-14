@@ -1,4 +1,34 @@
 ***
+5.14
+
+- priority inversion
+
+![](../files/mutex_block_state.png)
+
+critical section
+
+```
+void vPortEnterCritical( void )
+{
+	vPortDisableInterrupts();
+	uxCriticalNesting++;
+}
+
+void vPortDisableInterrupts( void )
+{
+	xInterruptsEnabled = pdFALSE;
+}
+
+```c
+
+`taskENTER_CRITICAL`, `taskEXIT_CRITICAL`就是进入临界区关中断，开中断
+
+uxCriticalNesting大概就是临界区嵌套深度，只有当临界区深度==0并退出临界区的时候，中断才会重新开始，否则，中断就不会被允许
+
+[uxCriticalNesting相关链接](https://freertos.org/FreeRTOS_Support_Forum_Archive/November_2005/freertos_uxCriticalNesting_1386799.html)
+
+
+***
 5.9
 
 APIs

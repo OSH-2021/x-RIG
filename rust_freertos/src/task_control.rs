@@ -567,7 +567,7 @@ impl TaskHandle {
             self.add_task_to_ready_list()?;
         }
         taskEXIT_CRITICAL!();
-        if get_scheduler_running!() {
+        if get_scheduler_running!() {   //  ???
             let current_task_priority = get_current_task_handle!().get_priority();
             if current_task_priority < unwrapped_tcb.task_priority {
                 taskYIELD_IF_USING_PREEMPTION!();
