@@ -78,8 +78,13 @@
         
  send 释放信号量 相当于一次入队操作 
  receive 获取信号量 相当于一次出队操作
+ xQueueGenericSendFromISR ()，这个函数用于入队，用于中断服务程序中，另外一个receivefromISR类似。
 
  递归信号量：
  总结：递归信号量是为了保证在中间有公用函数的情况下，为连续执行代码段，保证公用函数不被其他任务执行，递归信号量因此而存在。
  https://www.cnblogs.com/ycpkbql/p/11770402.html
  递归信号量的属性:同一个任务中,可以被获取多次,且需要释放相同次数才能被其他任务获取
+
+ rust文件中semophore.rs
+ 71行：(*inner).queue_generic_receive(semGIVE_BLOCK_TIME, false)改为(*inner).queue_generic_send(None, xBlockTime, queueSEND_TO_BACK)
+ 91行：(*inner).queue_generic_send(None, xBlockTime, queueSEND_TO_BACK)改为(*inner).queue_generic_receive(semGIVE_BLOCK_TIME, false)
