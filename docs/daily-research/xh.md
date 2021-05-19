@@ -73,18 +73,67 @@
     3.  https://www.read.seas.harvard.edu/cs161/2018/     （2018年）
         从2018年开始，课程使用了新的页面，以及开始使用chickadee来称呼新的操作系统（基于weensy os）
         
-        
-        
-        
- send 释放信号量 相当于一次入队操作 
- receive 获取信号量 相当于一次出队操作
- xQueueGenericSendFromISR ()，这个函数用于入队，用于中断服务程序中，另外一个receivefromISR类似。
+semaphore.rs      
+1. pub fn new_mutex() -> Self
+Create a new mutex type semaphore instance.
+ Return: The created mutex.
 
- 递归信号量：
- 总结：递归信号量是为了保证在中间有公用函数的情况下，为连续执行代码段，保证公用函数不被其他任务执行，递归信号量因此而存在。
- https://www.cnblogs.com/ycpkbql/p/11770402.html
- 递归信号量的属性:同一个任务中,可以被获取多次,且需要释放相同次数才能被其他任务获取
+2. pub fn get_mutex_holder(&self) -> Option<task_control::TaskHandle> 
+Get the mutex holder.
+ Return:`Option<task_control::TaskHandle>` - the holder of the mutex
 
- rust文件中semophore.rs
- 71行：(*inner).queue_generic_receive(semGIVE_BLOCK_TIME, false)改为(*inner).queue_generic_send(None, xBlockTime, queueSEND_TO_BACK)
- 91行：(*inner).queue_generic_send(None, xBlockTime, queueSEND_TO_BACK)改为(*inner).queue_generic_receive(semGIVE_BLOCK_TIME, false)
+3. pub fn semaphore_up(&self) -> Result<Option<TaskHandle>, QueueError>
+Release a semaphore.
+ Return: Ok(T) if the semaphore was released, otherwise QueueError::QueueEmpty.
+
+4. pub fn semaphore_down(&self, xBlockTime: TickType) -> Result<(), QueueError>
+Obtain a semaphore.
+ Return: Ok() if the semaphore was obtained, otherwise errQUEUE_FULL.
+
+
+5. pub fn create_binary() -> Self 
+Create a binary semaphore.
+#Return: The created binary semaphore.
+
+6. pub fn create_counting(max_count: UBaseType /*,initial_count:UBaseType*/) -> Self
+Create a counting semaphore.
+ Arguments: `max_count` - The maximum count value that can be reached. When the semaphore reaches this value it can no longer be 'given'.
+ Return: The created counting semaphore.
+
+7. pub fn create_recursive_mutex() -> Self 
+Created a recursive mutex.
+ Return: The created recursive mutex.
+8. pub fn up_recursive(&self) -> bool 
+Release a recursive mutex.
+ Return: `bool` - true if the recursive mutex was released.
+9. pub fn down_recursive(&self, ticks_to_wait: TickType) -> bool
+Obtain a recursive mutex.
+ Return: `bool` - true if the recursive mutex was obtained.
+10. pub fn get_recursive_count(&self) -> UBaseType 
+Get the recursive count of a recursive mutex.
+ Return: `UBaseType` - the recursive count of the recursive mutex.      
+        
+send 释放信号量 相当于一次入队操作 
+receive 获取信号量 相当于一次出队操作
+xQueueGenericSendFromISR ()，这个函数用于入队，用于中断服务程序中，另外一个receivefromISR类似。
+
+递归信号量：
+
+递归信号量的属性:同一个任务中,可以被获取多次,且需要释放相同次数才能被其他任务获取
+>It is also possible for a task to deadlock with itself. This will happen if a task attempts to take 
+the same mutex more than once, without first returning the mutex. Consider the following 
+scenario:
+>1. A task successfully obtains a mutex.
+>2. While holding the mutex, the task calls a library function.
+>3. The implementation of the library function attempts to take the same mutex, and enters 
+the Blocked state to wait for the mutex to become available.
+At the end of this scenario the task is in the Blocked state to wait for the mutex to be returned, 
+but the task is already the mutex holder. A deadlock has occurred because the task is in the 
+Blocked state to wait for itself. 
+This type of deadlock can be avoided by using a recursive mutex in place of a standard mutex. 
+A recursive mutex can be ‘taken’ more than once by the same task, and will be returned only 
+after one call to ‘give’ the recursive mutex has been executed for every preceding call to ‘take’ the recursive mutex.
+
+71行：(*inner).queue_generic_receive(semGIVE_BLOCK_TIME, false)改为(*inner).queue_generic_send(None, xBlockTime, queueSEND_TO_BACK)
+91行：(*inner).queue_generic_send(None, xBlockTime, queueSEND_TO_BACK)改为(*inner).queue_generic_receive(semGIVE_BLOCK_TIME, false)
+
