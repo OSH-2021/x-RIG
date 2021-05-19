@@ -1,4 +1,112 @@
+# 5.19
++ task状态：runing, ready, blocked, suspend, delete, invalid
++ task 通信状态： no action, set bits, increment, set a value with overwrite, set a value without overwrite
+
+BaseType_t xTaskCreate( TaskFunction_t pxTaskCode,
+                        const char * const pcName,     /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
+                        const configSTACK_DEPTH_TYPE usStackDepth,
+                        void * const pvParameters,
+                        UBaseType_t uxPriority,
+                        TaskHandle_t * const pxCreatedTask ) PRIVILEGED_FUNCTION;
+
+# rust
++ 状态：无invalid
++ 结构体：tcb
+  > name(), stacksize(), priority(), initialise
++ Default trait
+
+
+## task 组成
+    state_list_item: Default::default(),
+            event_list_item: Default::default(),
+            task_priority: 1,
+            task_stacksize: configMINIMAL_STACK_SIZE!(),
+            task_name: String::from("Unnamed"),
+            stack_pos: 0,
+
+            //* nesting
+            #[cfg(feature = "portCRITICAL_NESTING_IN_TCB")]
+            critical_nesting: 0,
+
+            //* reverse priority
+            #[cfg(feature = "configUSE_MUTEXES")]
+            base_priority: 0,
+            #[cfg(feature = "configUSE_MUTEXES")]
+            mutexes_held: 0,
+
+            #[cfg(feature = "configGENERATE_RUN_TIME_STATS")]
+            runtime_counter: 0,
+
+            //* notify information
+            #[cfg(feature = "configUSE_TASK_NOTIFICATIONS")]
+            notified_value: 0,
+            #[cfg(feature = "configUSE_TASK_NOTIFICATIONS")]
+            notify_state: 0,
+            #[cfg(feature = "INCLUDE_xTaskAbortDelay")]
+            delay_aborted: false,
+
+## task api
++ new 
++ name： 命名
++ stacksize ：
++ PartialEq
++ 
+
+### TCB/Task
+#### 参数
+state_list_item   event_list_item    task_priority    task_stacksize    task_name   stack_pos    critical_nesting   base_priority    mutexes_held    runtime_counter      notified_value    notify_state   delay_aborted
+#### 方法
+new  get_state_list_item   get_event_list_item    get_priority    set_priority   get_name   get_run_time    set_run_time...
+
+From
+
+#### TaskHandle
+
+#### 方法
+from_arc   from    set_priority
+
+
+
+
+  
+
+## Q
++ RwLock
++ lazy_static
+
+## task 官方文档
+
++ 任务状态
+> The Blocked State
+>> Tasks can enter the Blocked state to wait for two different types of event:
+>> 1. 时态（与时间相关的）事件是指延迟期到期或达到绝对时间的事件。例如，任务可能会进入阻塞状态，等待10毫秒才能通过。
+>> 2. 事件源自另一个任务或中断的同步事件。例如，任务可能会进入阻塞状态，等待数据到达队列。同步事件涵盖了广泛的事件类型。
+>> FreeRTOS队列、二进制信号量、计数信号量、互斥量、递归互斥量、事件组和直接到任务的通知都可以用于创建同步事件。所有这些功能都将在本书的后续章节中介绍。任务有可能在同步事件上阻塞超时，有效地同时阻断两种类型的事件。例如，任务可能会选择等待最长10毫秒，以便数据到达队列。如果数据在10毫秒内到达，或者10毫秒后没有数据到达，任务将离开阻塞状态。
+
+> The Suspended State
+>>“暂停”也是不运行的子状态。处于挂起状态的任务对计划程序不可用。进入挂起状态的唯一方法是调用vtasksuspend（）API函数，唯一的出路是调用vTaskResume（）或xTaskResumeFromISR（）API函数。大多数应用程序不使用挂起状态。
+
+>The Ready State
+>>处于未运行状态但未被阻止或挂起的任务称为处于就绪状态。它们能够运行，因此“准备好”运行，但当前未处于运行状态。
+
+>Completing the State Transition Diagram
+>>图15扩展了之前过于简化的状态图，包括本节中描述的所有未运行的子状态。到目前为止，示例中创建的任务没有使用阻塞或挂起状态；它们只在就绪状态和运行状态之间转换，运行状态由图15中粗体的行突出显示。
+![](./1.png)
+
++ IDLE WORK & IDLE HOOK
+
++ 优先级 查看与更改
+
++ 调度算法
+  +  A Recap of Task States and Events
+  +  Configuring the Scheduling Algorithm
+  +  Prioritized Pre-emptive Scheduling with Time Slicing
+  +  Prioritized Pre-emptive Scheduling (without Time Slicing)
+  +  Co-operative Scheduling> 
+
+
 # stream_buffer
+
 ## 宏定义
 + STREAM_BUFFER_H
 + INC_FREERTOS_H
