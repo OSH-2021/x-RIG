@@ -120,7 +120,19 @@ xQueueGenericSendFromISR ()，这个函数用于入队，用于中断服务程�
 递归信号量：
 
 递归信号量的属性:同一个任务中,可以被获取多次,且需要释放相同次数才能被其他任务获取
-![](2021-05-19-17-00-52.png)
+>It is also possible for a task to deadlock with itself. This will happen if a task attempts to take 
+the same mutex more than once, without first returning the mutex. Consider the following 
+scenario:
+>1. A task successfully obtains a mutex.
+>2. While holding the mutex, the task calls a library function.
+>3. The implementation of the library function attempts to take the same mutex, and enters 
+the Blocked state to wait for the mutex to become available.
+At the end of this scenario the task is in the Blocked state to wait for the mutex to be returned, 
+but the task is already the mutex holder. A deadlock has occurred because the task is in the 
+Blocked state to wait for itself. 
+This type of deadlock can be avoided by using a recursive mutex in place of a standard mutex. 
+A recursive mutex can be ‘taken’ more than once by the same task, and will be returned only 
+after one call to ‘give’ the recursive mutex has been executed for every preceding call to ‘take’ the recursive mutex.
 
 71行：(*inner).queue_generic_receive(semGIVE_BLOCK_TIME, false)改为(*inner).queue_generic_send(None, xBlockTime, queueSEND_TO_BACK)
 91行：(*inner).queue_generic_send(None, xBlockTime, queueSEND_TO_BACK)改为(*inner).queue_generic_receive(semGIVE_BLOCK_TIME, false)
