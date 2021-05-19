@@ -1,4 +1,18 @@
 # 5.19
+## kernel
+.taskYIELD()
+  比如我创建了8个优先级一样的task,并且没有创建其他优先级的进程,
+  而且8个task每个task都不会调用任何引起本task从就绪运行队列链表中被摘掉的系统函数,就像示例中
+  vStartIntegerMathTasks()创建vCompeteingIntMathTask1(),vCompeteingIntMathTask2()...vCompeteingIntMathTask8()一样,
+  每个task都是不会睡眠的不停的执行自己,当每个task觉得自己占用cpu的时间已经差不多的时候,
+  就会调用taskYIELD(),主动让出cpu,让同优先级的其他task获得cpu,因为没有其他优先级的task,所以调度器不会切换优先级,
+
+  而是采用轮转调度策略,运行同优先级的就绪运行队列链表中调用taskYIELD()函数的当前task的下一个task.
+
+  就这样8个task轮流让出cpu给同优先级的下一个兄弟task,8个task都采用主动协作的方式,彼此安全顺利的跑了起来.
+
+
+## before
 + task状态：runing, ready, blocked, suspend, delete, invalid
 + task 通信状态： no action, set bits, increment, set a value with overwrite, set a value without overwrite
 
