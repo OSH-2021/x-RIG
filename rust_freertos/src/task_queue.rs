@@ -21,7 +21,7 @@ use crate::*;
 pub const taskEVENT_LIST_ITEM_VALUE_IN_USE: TickType = 0x8000;
 #[cfg(not(feature = "configUSE_16_BIT_TICKS"))]
 pub const taskEVENT_LIST_ITEM_VALUE_IN_USE: TickType = 0x80000000;
-
+// what does this function do?
 pub fn task_remove_from_event_list(event_list: &ListLink) -> bool {
     let unblocked_tcb = list::get_owner_of_head_entry(event_list);
     // configASSERT( unblocked_tcb );

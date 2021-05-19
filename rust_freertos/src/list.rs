@@ -30,9 +30,9 @@ pub struct ListItem {
     container: Weak<RwLock<List>>,
 }
 
-pub type ItemLink = Arc<RwLock<ListItem>>;
-pub type WeakItemLink = Weak<RwLock<ListItem>>;
-pub type WeakListLink = Weak<RwLock<List>>;
+pub type ItemLink = Arc<RwLock<ListItem>>;      // Arc: 线程安全 引用计数指针
+pub type WeakItemLink = Weak<RwLock<ListItem>>; // Weak 引用不计入所有权
+pub type WeakListLink = Weak<RwLock<List>>;     // 他指向的value可能被释放掉，它在upgrade时可能会返回None
 pub type ListLink = Arc<RwLock<List>>;
 
 impl Default for ListItem {
@@ -50,16 +50,17 @@ impl Default for ListItem {
 }
 
 impl ListItem {
+    // set item value
     pub fn item_value(mut self, item_value: TickType) -> Self {
         self.item_value = item_value;
         self
     }
-
+    // set owner
     pub fn owner(mut self, owner: TaskHandle) -> Self {
-        self.owner = owner.into();
+        self.owner = owner.into(); // TODO: search into(我搜不到呜呜呜，估计是downgrade 成 Weak)
         self
     }
-
+    // set container
     pub fn set_container(&mut self, container: &Arc<RwLock<List>>) {
         self.container = Arc::downgrade(container);
     }
@@ -70,7 +71,7 @@ impl ListItem {
         let list = self
             .container
             .upgrade()
-            .unwrap_or_else(|| panic!("Container not set"));
+            .unwrap_or_else(|| panic!("Container not set")); // note the syntax here, better use unwrap_or_else (not just unwrap)
         let ret_val = list.write().unwrap().remove_item(&self, link);
         set_list_item_next(&self.prev, Weak::clone(&self.next));
         set_list_item_prev(&self.next, Weak::clone(&self.prev));
@@ -90,6 +91,7 @@ pub struct List {
     /* Used to walk through the list.
      * Points to the last item returned by a call to listGET_OWNER_OF_NEXT_ENTRY (). */
     index: WeakItemLink,
+
     /* List item that contains the maximum possible item value meaning
      * it is always at the end of the list and is therefore used as a marker. */
     list_end: ItemLink,

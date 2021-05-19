@@ -12,17 +12,14 @@ pub const queueSEMAPHORE_QUEUE_ITEM_LENGTH: UBaseType = 0;
 pub const queueMUTEX_GIVE_BLOCK_TIME: TickType = 0;
 
 #[derive(Default)]
-pub struct QueueDefinition<T>
-where
-    T: Default + Clone,
-{
+pub struct QueueDefinition<T> where T: Default + Clone, {
     pcQueue: VecDeque<T>,
 
     pcHead: UBaseType,
     pcTail: UBaseType,
     pcWriteTo: UBaseType,
 
-    /*pcReadFrom & uxRecuriveCallCount*/
+    /* pcReadFrom & uxRecuriveCallCount */
     QueueUnion: UBaseType,
 
     xTasksWaitingToSend: ListLink,
@@ -48,10 +45,7 @@ where
     ucQueueType: QueueType,
 }
 
-impl<T> QueueDefinition<T>
-where
-    T: Default + Clone,
-{
+impl<T> QueueDefinition<T> where T: Default + Clone, {
     /// # Description
     /// Create a new queue.
     ///
@@ -67,18 +61,19 @@ where
     #[cfg(feature = "configSUPPORT_DYNAMIC_ALLOCATION")]
     pub fn queue_generic_create(uxQueueLength: UBaseType, ucQueueType: QueueType) -> Self {
         let mut queue: QueueDefinition<T> = Default::default();
-        queue.pcQueue = VecDeque::with_capacity(uxQueueLength as usize);
+        queue.pcQueue = VecDeque::with_capacity(uxQueueLength as usize); // cast uxQueueLength to usize
         queue.initialise_new_queue(uxQueueLength, ucQueueType);
         queue
     }
 
     /// # Description
-    /// *
     /// * Implemented by:Lei Siqi
     /// # Argument
+    ///     `uxQueueLength` - the length of the queue
     ///
+    ///     `ucQueueType` - the type of the queue
     /// # Return
-    ///
+    /// None
     pub fn initialise_new_queue(&mut self, uxQueueLength: UBaseType, ucQueueType: QueueType) {
         self.pcHead = 0;
         self.uxLength = uxQueueLength;
@@ -99,23 +94,23 @@ where
     ///
     /// * Implemented by:Ning Yuting
     /// * C implementation:queue.c 279-329
-    /// 
+    ///
     /// # Argument
     /// * `xNewQueue` - whether the queue is a new queue
-    /// 
+    ///
     /// # Return
     /// `Result<(),QueueError>` - Ok() if the queue was successfully reseted.
     pub fn queue_generic_reset(&mut self, xNewQueue: bool) -> Result<(), QueueError> {
-        //xNewQueue源码中为BaseType，改为bool
-        //返回值原为BaseType，改为result
+        // xNewQueue 源码中为 BaseType，改为bool
+        // 返回值原为 BaseType, 改为 result
         taskENTER_CRITICAL!();
         {
             //初始化队列相关成员变量
             self.pcTail = self.pcHead + self.uxLength;
             self.uxMessagesWaiting = 0 as UBaseType;
             self.pcWriteTo = self.pcHead;
-            self.QueueUnion = self.pcHead + self.uxLength - (1 as UBaseType); //QueueUnion represents pcReadFrom
-            self.cRxLock = queueUNLOCKED;
+            self.QueueUnion = self.pcHead + self.uxLength - (1 as UBaseType); // QueueUnion represents pcReadFrom
+            self.cRxLock = queueUNLOCKED; // what are these two locks?
             self.cTxLock = queueUNLOCKED;
             self.pcQueue.clear(); //初始化空队列
             if xNewQueue == false {
@@ -146,7 +141,10 @@ where
     ///
     /// # Argument
     /// `pvItemToQueue` - the item that is to be placed to the queue.
-    /// `xCopyPosition` - the position that the item is to be placed to.
+    ///
+    /// `xTicksToWait` - The maximum amount of time the task should block
+    ///
+    /// `xCopyPosition` - the position that the item is to be placed to. (你不是队列吗？怎么还可以选定要存在哪里)
     ///
     /// # Return
     /// Ok() if the item is successfully posted, otherwise Err(QueueError::QueueEmpty).
@@ -160,12 +158,12 @@ where
         let mut xTimeOut: time_out = Default::default();
         let mut xTicksToWait = xTicksToWait;
 
-        assert!(!((xCopyPosition == queueOVERWRITE) && self.uxLength == 1));
+        assert!(!(xCopyPosition == queueOVERWRITE && self.uxLength == 1));
 
         #[cfg(all(feature = "xTaskGetSchedulerState", feature = "configUSE_TIMERS"))]
         assert!(
-            !((kernel::task_get_scheduler_state() == SchedulerState::Suspended)
-                && (xTicksToWait != 0))
+            !(kernel::task_get_scheduler_state() == SchedulerState::Suspended
+                && xTicksToWait != 0)
         );
         trace!("Enter function queue_generic_send! TicksToWait: {}, uxMessageWaiting: {}, xCopyPosition: {}", xTicksToWait ,self.uxMessagesWaiting, xCopyPosition);
         /* This function relaxes the coding standard somewhat to allow return
@@ -186,7 +184,7 @@ where
                     /* The queue is a member of a queue set, and posting
                     to the queue set caused a higher priority task to
                     unblock. A context switch is required. */
-                    #[cfg(feature = "configUSE_QUEUE_SETS")]
+                    #[cfg(feature = "configUSE_QUEUE_SETS")] // NOT IMPLEMENTED!!! config not in cargo.toml
                     match self.pxQueueSetContainer {
                         Some => {
                             if notify_queue_set_container(&self, &xCopyPosition) != false {
@@ -211,7 +209,7 @@ where
                     {
                         /* If there was a task waiting for data to arrive on the
                         queue then unblock it now. */
-                        #![cfg(not(feature = "configUSE_QUEUE_SETS"))]
+                        #![cfg(not(feature = "configUSE_QUEUE_SETS"))] // so this one here is compiled
                         if !list::list_is_empty(&self.xTasksWaitingToReceive) {
                             if task_queue::task_remove_from_event_list(&self.xTasksWaitingToReceive)
                             {
@@ -312,10 +310,10 @@ where
 
     /// # Description
     /// Post an item to a queue. It is safe to use this function from within an interrupt service routine.
-    /// 
+    ///
     /// * Implemented by:Ning Yuting
     /// * C implementation:queue.c 921-1069
-    /// 
+    ///
     /// # Argument
     /// `pvItemToQueue` - the item that is to be placed on the queue.
     /// `xCopyPosition` - the position that the item is to be placed.
@@ -398,10 +396,10 @@ where
 
     /// # Description
     /// Lock the queue.
-    /// 
+    ///
     /// * Implemented by:Ning Yuting
     /// * C implementation:queue.c 264-276
-    /// 
+    ///
     /// # Argument
     /// Nothing
     ///
@@ -423,13 +421,13 @@ where
 
     /// # Description
     /// Unlock the queue
-    /// 
+    ///
     /// * Implemented by:Ning Yuting
     /// * C implementation:queue.c 1794-1911
-    /// 
+    ///
     /// # Argument
     /// Nothing
-    /// 
+    ///
     /// # Return
     /// Nothing
     fn unlock_queue(&mut self) {
@@ -437,7 +435,7 @@ where
         {
             let mut cTxLock: i8 = self.cTxLock;
             while cTxLock > queueLOCKED_UNMODIFIED {
-                #[cfg(feature = "configUSE_QUEUE_SETS")]
+                #[cfg(feature = "configUSE_QUEUE_SETS")] // ignore this
                 match self.pxQueueSetContainer {
                     Some => {
                         if notify_queue_set_container(self, queueSEND_TO_BACK) != false {
@@ -507,10 +505,10 @@ where
     /// # Description
     /// Receive an item from a queue.
     /// The item is received by copy and is returned by Ok(T);
-    /// 
+    ///
     /// * Implemented by:Ning Yuting
     /// * C implementation: queue.c 1237
-    /// 
+    ///
     /// # Argument
     /// * `xTicksToWait` - The maximum amount of time the task should block
     /// waiting for an item to receive should the queue be empty at the time
@@ -526,8 +524,7 @@ where
     ) -> Result<T, QueueError> {
         let mut xEntryTimeSet: bool = false;
         let mut xTimeOut: time_out = Default::default();
-        /*when receive = give, it has to call the function task_priority_disinherit. It may require
-         * yield.*/
+        /* when receive = give, it has to call the function task_priority_disinherit. It may require yield */
         let mut xYieldRequired: bool = false;
         let mut buffer: Option<T>;
         #[cfg(all(feature = "xTaskGetSchedulerState", feature = "configUSE_TIMERS"))]
@@ -536,8 +533,8 @@ where
                 && (xTicksToWait != 0))
         );
         /* This function relaxes the coding standard somewhat to allow return
-	statements within the function itself.  This is done in the interest
-	of execution time efficiency. */
+        statements within the function itself.  This is done in the interest
+        of execution time efficiency. */
         loop {
             trace!(
                 "Enter function queue_generic_receive, TicksToWait:{}, Peeking: {}!",
@@ -577,7 +574,7 @@ where
                             }
                         }
                         trace!("queue_generic_receive -- line 498");
-                        if list::list_is_empty(&self.xTasksWaitingToSend) == false {
+                        if list::list_is_empty(&self.xTasksWaitingToSend) == false { // 这基本上是一个routine，以后用的话看看就好吧
                             if task_queue::task_remove_from_event_list(&self.xTasksWaitingToSend)
                                 != false
                             {
@@ -770,7 +767,7 @@ where
     /// To know whether the queue is full.
     ///
     /// * Implemented by:Lei Siqi
-    /// 
+    ///
     /// # Argument
     /// Nothing
     ///
@@ -828,6 +825,9 @@ where
     }
 
     #[cfg(feature = "configUSE_QUEUE_SETS")]
+    /// # UNIMPLEMENTED
+    /// jjj
+    /// * test123
     fn notify_queue_set_container(&self, xCopyPosition: BaseType) {
         unimplemented!();
     }

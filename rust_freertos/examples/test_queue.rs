@@ -15,7 +15,7 @@ fn main() { // test queue
     // 发送数据的任务代码。
     let sender = move || {
         for i in 1..11 {
-            // send方法的参数包括要发送的数据和ticks_to_wait
+            // send方法的参数包括要发送的数据和 ticks_to_wait
             q_sender.send(i, pdMS_TO_TICKS!(50)).unwrap();
         }
         loop {
