@@ -1,3 +1,51 @@
+# 5.22
+PRIVILEGED_FUNCTION
+
+PRIVILEGED_FUNCTION 这个宏是用于存储保护单元芯片的。
+
+这几个任务创建函数都是用于任务创建，任务一旦创建就会被插入任务就绪链表中，当调度器调度启动后就按任务状态机根据调度策略以及外部输入事件进行调度接管。
+
+StreamBufferDef_t
+
+## xStreamBufferCreate( xBufferSizeBytes, xTriggerLevelBytes ) 
+
+xStreamBufferCreateStatic( xBufferSizeBytes, xTriggerLevelBytes, pucStreamBufferStorageArea, pxStaticStreamBuffer )
+在流缓冲区上被阻塞的任务等待数据移出阻塞状态之前，流缓冲区中必须存在的字节数。例如，如果任务在读取触发器级别为1的空流缓冲区时被阻止，则当单个字节写入缓冲区或任务的阻止时间过期时，该任务将被取消阻止。作为另一个示例，如果任务在读取触发器级别为10的空流缓冲区时被阻止，则在流缓冲区包含至少10个字节或任务的阻止时间到期之前，任务不会被解除阻止。如果读取任务的块时间在达到触发器级别之前过期，那么无论实际可用的字节数是多少，该任务仍将接收。将触发器级别设置为0将导致使用触发器级别1。指定大于缓冲区大小的触发器级别无效。
+
+## xStreamBufferSend( StreamBufferHandle_t xStreamBuffer, const void *pvTxData, size_t xDataLengthBytes, TickType_t xTicksToWait );
+如果流缓冲区包含的空间太小，无法容纳另一个xDataLengthBytes，则任务应保持在阻止状态以等待流缓冲区中有足够空间可用的最长时间。阻塞时间是以滴答周期指定的，因此它所代表的绝对时间取决于滴答频率。宏pdMS TO_TICKS（）可用于将以毫秒为单位指定的时间转换为以TICKS为单位指定的时间。如果在FreeRTOSConfig.h中将INCLUDE\vTaskSuspend设置为1，那么将xTicksToWait设置为portMAX\u DELAY将导致任务无限期等待（不超时）。如果任务在将所有xDataLengthBytes写入缓冲区之前超时，它仍将尽可能多地写入字节。任务处于阻塞状态时不使用任何CPU时间。
+## size_t xStreamBufferSendFromISR( StreamBufferHandle_t xStreamBuffer, const void *pvTxData, size_t xDataLengthBytes, BaseType_t *pxHigherPriorityTaskWoken );
+流缓冲区上可能有一个任务被阻塞，等待数据。调用xStreamBufferSendFromISR（）可以使数据可用，从而导致等待数据的任务离开阻塞状态。如果调用xStreamBufferSendFromISR（）导致任务离开阻塞状态，并且未阻塞的任务的优先级高于当前正在执行的任务（被中断的任务），那么在内部，xStreamBufferSendFromISR（）会将*pxHigherPriorityTaskWoken设置为pdTRUE。如果xStreamBufferSendFromISR（）将此值设置为pdTRUE，则通常应在中断退出之前执行上下文切换。这将确保中断直接返回到最高优先级就绪状态任务 *pxHigherPriorityTaskWoken在传递到函数之前应设置为pdFALSE。有关示例，请参
+
+## size_t xStreamBufferReceive( StreamBufferHandle_t xStreamBuffer,void * pvRxData,size_t xBufferLengthBytes,TickType_t xTicksToWait ) PRIVILEGED_FUNCTION;
+
+## size_t xStreamBufferReceiveFromISR( StreamBufferHandle_t xStreamBuffer, void *pvRxData, size_t xBufferLengthBytes, BaseType_t *pxHigherPriorityTaskWoken );
+
+## void vStreamBufferDelete( StreamBufferHandle_t xStreamBuffer ) PRIVILEGED_FUNCTION;
+
+
+##  void vStreamBufferDelete( StreamBufferHandle_t xStreamBuffer ) PRIVILEGED_FUNCTION;
+
+## BaseType_t xStreamBufferIsFull( StreamBufferHandle_t xStreamBuffer ) PRIVILEGED_FUNCTION;
+
+## BaseType_t xStreamBufferIsEmpty( StreamBufferHandle_t xStreamBuffer ) PRIVILEGED_FUNCTION;
+
+## BaseType_t xStreamBufferReset( StreamBufferHandle_t xStreamBuffer ) PRIVILEGED_FUNCTION;
+A stream buffer can only be reset if there are no tasks blocked waiting to either send to or receive from the stream buffer.
+
+##  size_t xStreamBufferSpacesAvailable( StreamBufferHandle_t xStreamBuffer ) PRIVILEGED_FUNCTION;
+Queries a stream buffer to see how much free space it contains, which is equal to the amount of data that can be sent to the stream buffer before it is full.
+
+## size_t xStreamBufferBytesAvailable( StreamBufferHandle_t xStreamBuffer ) PRIVILEGED_FUNCTION;
+
+##  BaseType_t xStreamBufferSetTriggerLevel( StreamBufferHandle_t xStreamBuffer, size_t xTriggerLevel ) PRIVILEGED_FUNCTION;
+流缓冲区的触发级别是在流缓冲区上被阻止以等待数据移出阻止状态的任务之前，必须在流缓冲区中的字节数。例如，如果任务在读取触发器级别为1的空流缓冲区时被阻止，则当单个字节写入缓冲区或任务的阻止时间过期时，该任务将被取消阻止。作为另一个示例，如果任务在读取触发器级别为10的空流缓冲区时被阻止，则在流缓冲区包含至少10个字节或任务的阻止时间到期之前，任务不会被解除阻止。如果读取任务的块时间在达到触发器级别之前过期，那么无论实际可用的字节数是多少，该任务仍将接收。将触发器级别设置为0将导致使用触发器级别1。指定大于缓冲区大小的触发器级别无效。
+
+
+##  BaseType_t xStreamBufferSendCompletedFromISR( StreamBufferHandle_t xStreamBuffer,BaseType_t * pxHigherPriorityTaskWoken ) PRIVILEGED_FUNCTION;
+当数据被发送到消息缓冲区或流缓冲区时，sbSEND_COMPLETED（）宏从FreeRTOS api中调用。如果消息或流缓冲区中有一个任务被阻止，等待数据到达，那么sbSEND_COMPLETED（）宏会向该任务发送通知，将其从阻止状态中删除。xstreamBufferEndCompletedFromIsr（）做同样的事情。它的提供使应用程序编写器能够实现自己的sbSEND_COMPLETED（）版本，并且不能在任何其他时间使用。
+
+
 # 5.19
 ## kernel
 .taskYIELD()
@@ -11,17 +59,19 @@
 
   就这样8个task轮流让出cpu给同优先级的下一个兄弟task,8个task都采用主动协作的方式,彼此安全顺利的跑了起来.
 
+PENDING_READY_LIST
+
 
 ## before
 + task状态：runing, ready, blocked, suspend, delete, invalid
 + task 通信状态： no action, set bits, increment, set a value with overwrite, set a value without overwrite
 
 BaseType_t xTaskCreate( TaskFunction_t pxTaskCode,
-                        const char * const pcName,     /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
-                        const configSTACK_DEPTH_TYPE usStackDepth,
-                        void * const pvParameters,
-                        UBaseType_t uxPriority,
-                        TaskHandle_t * const pxCreatedTask ) PRIVILEGED_FUNCTION;
+      const char * const pcName,     /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
+      const configSTACK_DEPTH_TYPE usStackDepth,
+      void * const pvParameters,
+      UBaseType_t uxPriority,
+      TaskHandle_t * const pxCreatedTask ) PRIVILEGED_FUNCTION;
 
 # rust
 + 状态：无invalid
@@ -32,32 +82,32 @@ BaseType_t xTaskCreate( TaskFunction_t pxTaskCode,
 
 ## task 组成
     state_list_item: Default::default(),
-            event_list_item: Default::default(),
-            task_priority: 1,
-            task_stacksize: configMINIMAL_STACK_SIZE!(),
-            task_name: String::from("Unnamed"),
-            stack_pos: 0,
+   event_list_item: Default::default(),
+   task_priority: 1,
+   task_stacksize: configMINIMAL_STACK_SIZE!(),
+   task_name: String::from("Unnamed"),
+   stack_pos: 0,
 
-            //* nesting
-            #[cfg(feature = "portCRITICAL_NESTING_IN_TCB")]
-            critical_nesting: 0,
+   //* nesting
+   #[cfg(feature = "portCRITICAL_NESTING_IN_TCB")]
+   critical_nesting: 0,
 
-            //* reverse priority
-            #[cfg(feature = "configUSE_MUTEXES")]
-            base_priority: 0,
-            #[cfg(feature = "configUSE_MUTEXES")]
-            mutexes_held: 0,
+   //* reverse priority
+   #[cfg(feature = "configUSE_MUTEXES")]
+   base_priority: 0,
+   #[cfg(feature = "configUSE_MUTEXES")]
+   mutexes_held: 0,
 
-            #[cfg(feature = "configGENERATE_RUN_TIME_STATS")]
-            runtime_counter: 0,
+   #[cfg(feature = "configGENERATE_RUN_TIME_STATS")]
+   runtime_counter: 0,
 
-            //* notify information
-            #[cfg(feature = "configUSE_TASK_NOTIFICATIONS")]
-            notified_value: 0,
-            #[cfg(feature = "configUSE_TASK_NOTIFICATIONS")]
-            notify_state: 0,
-            #[cfg(feature = "INCLUDE_xTaskAbortDelay")]
-            delay_aborted: false,
+   //* notify information
+   #[cfg(feature = "configUSE_TASK_NOTIFICATIONS")]
+   notified_value: 0,
+   #[cfg(feature = "configUSE_TASK_NOTIFICATIONS")]
+   notify_state: 0,
+   #[cfg(feature = "INCLUDE_xTaskAbortDelay")]
+   delay_aborted: false,
 
 ## task api
 + new 
