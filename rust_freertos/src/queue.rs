@@ -809,7 +809,7 @@ impl<T> QueueDefinition<T> where T: Default + Clone, {
         self.QueueUnion
     }
 
-    /* `new` has two arguments now:length, QueueType.
+    /* `new` has two arguments now: length, QueueType.
      * Remember to add QueueType when using it.
      */
     /// # Description
