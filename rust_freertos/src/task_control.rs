@@ -1,6 +1,5 @@
 use crate::kernel::*;
-use crate::list;
-use crate::list::ItemLink; use crate::list::*;
+use crate::list::*;
 use crate::port::*;
 use crate::projdefs::FreeRtosError;
 use crate::task_global::*;

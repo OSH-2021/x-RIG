@@ -69,9 +69,9 @@ impl<T> QueueDefinition<T> where T: Default + Clone, {
     /// # Description
     /// * Implemented by:Lei Siqi
     /// # Argument
-    ///     `uxQueueLength` - the length of the queue
-    ///
-    ///     `ucQueueType` - the type of the queue
+    /// `uxQueueLength` - the length of the queue
+    /// `ucQueueType` - the type of the queue
+    /// 
     /// # Return
     /// None
     pub fn initialise_new_queue(&mut self, uxQueueLength: UBaseType, ucQueueType: QueueType) {

@@ -55,112 +55,111 @@ mod tests {
 
     use port;
     use task_control;
-    #[bench]
-    fn test_mutex(b: &mut Bencher) {
-        use semaphore::Semaphore;
-        use simplelog::*;
+    // #[bench]
+    // fn test_mutex(b: &mut Bencher) {
+    //     use semaphore::Semaphore;
+    //     use simplelog::*;
 
-        let task0 = move || {
-            let mut tmp = 1;
-            for i in 1..11 {
-                tmp = tmp * i;
-            }
-            kernel::task_end_scheduler();
-        };
+    //     let task0 = move || {
+    //         let mut tmp = 1;
+    //         for i in 1..11 {
+    //             tmp = tmp * i;
+    //         }
+    //         kernel::task_end_scheduler();
+    //     };
 
-        let task1 = move || {
-            let mut tmp = 1;
-            for i in 1..11 {
-                tmp = tmp * i;
-            }
-            kernel::task_end_scheduler();
-        };
+    //     let task1 = move || {
+    //         let mut tmp = 1;
+    //         for i in 1..11 {
+    //             tmp = tmp * i;
+    //         }
+    //         kernel::task_end_scheduler();
+    //     };
 
-        let task2 = move || {
-            let mut tmp = 1;
-            for i in 1..11 {
-                tmp = tmp * i;
-            }
-            kernel::task_end_scheduler();
-        };
+    //     let task2 = move || {
+    //         let mut tmp = 1;
+    //         for i in 1..11 {
+    //             tmp = tmp * i;
+    //         }
+    //         kernel::task_end_scheduler();
+    //     };
 
-        let task3 = move || {
-            let mut tmp = 1;
-            for i in 1..11 {
-                tmp = tmp * i;
-            }
-            kernel::task_end_scheduler();
-        };
+    //     let task3 = move || {
+    //         let mut tmp = 1;
+    //         for i in 1..11 {
+    //             tmp = tmp * i;
+    //         }
+    //         kernel::task_end_scheduler();
+    //     };
 
-        let task4 = move || {
-            let mut tmp = 1;
-            for i in 1..11 {
-                tmp = tmp * i;
-            }
-            kernel::task_end_scheduler();
-        };
+    //     let task4 = move || {
+    //         let mut tmp = 1;
+    //         for i in 1..11 {
+    //             tmp = tmp * i;
+    //         }
+    //         kernel::task_end_scheduler();
+    //     };
 
-        let task5 = move || {
-            let mut tmp = 1;
-            for i in 1..11 {
-                tmp = tmp * i;
-            }
-            kernel::task_end_scheduler();
-        };
+    //     let task5 = move || {
+    //         let mut tmp = 1;
+    //         for i in 1..11 {
+    //             tmp = tmp * i;
+    //         }
+    //         kernel::task_end_scheduler();
+    //     };
 
-        let task6 = move || {
-            let mut tmp = 1;
-            for i in 1..11 {
-                tmp = tmp * i;
-            }
-            kernel::task_end_scheduler();
-        };
+    //     let task6 = move || {
+    //         let mut tmp = 1;
+    //         for i in 1..11 {
+    //             tmp = tmp * i;
+    //         }
+    //         kernel::task_end_scheduler();
+    //     };
 
-        let task7 = move || {
-            let mut tmp = 1;
-            for i in 1..11 {
-                tmp = tmp * i;
-            }
-            kernel::task_end_scheduler();
-        };
+    //     let task7 = move || {
+    //         let mut tmp = 1;
+    //         for i in 1..11 {
+    //             tmp = tmp * i;
+    //         }
+    //         kernel::task_end_scheduler();
+    //     };
 
 
-        b.iter(|| {let Task0 = task_control::TCB::new()
-            .name("Task0")
-            .priority(3)
-            .initialise(task0);});
-        b.iter(|| {let Task1 = task_control::TCB::new()
-            .name("Task0")
-            .priority(3)
-            .initialise(task1);});
-        b.iter(|| {let Task2 = task_control::TCB::new()
-            .name("Task0")
-            .priority(3)
-            .initialise(task2);});
-        b.iter(|| {let Task3 = task_control::TCB::new()
-            .name("Task0")
-            .priority(3)
-            .initialise(task3);});
-        b.iter(|| {let Task4 = task_control::TCB::new()
-            .name("Task0")
-            .priority(3)
-            .initialise(task4);});
-        b.iter(|| {let Task5 = task_control::TCB::new()
-            .name("Task0")
-            .priority(3)
-            .initialise(task5);});
-        b.iter(|| {let task6 = task_control::TCB::new()
-            .name("Task0")
-            .priority(3)
-            .initialise(task6);});
-        b.iter(|| {let Task7 = task_control::TCB::new()
-            .name("Task0")
-            .priority(3)
-            .initialise(task7);});
-        kernel::task_start_scheduler();
-    }
+    //     b.iter(|| {let Task0 = task_control::TCB::new()
+    //         .name("Task0")
+    //         .priority(3)
+    //         .initialise(task0);});
+    //     b.iter(|| {let Task1 = task_control::TCB::new()
+    //         .name("Task0")
+    //         .priority(3)
+    //         .initialise(task1);});
+    //     b.iter(|| {let Task2 = task_control::TCB::new()
+    //         .name("Task0")
+    //         .priority(3)
+    //         .initialise(task2);});
+    //     b.iter(|| {let Task3 = task_control::TCB::new()
+    //         .name("Task0")
+    //         .priority(3)
+    //         .initialise(task3);});
+    //     b.iter(|| {let Task4 = task_control::TCB::new()
+    //         .name("Task0")
+    //         .priority(3)
+    //         .initialise(task4);});
+    //     b.iter(|| {let Task5 = task_control::TCB::new()
+    //         .name("Task0")
+    //         .priority(3)
+    //         .initialise(task5);});
+    //     b.iter(|| {let task6 = task_control::TCB::new()
+    //         .name("Task0")
+    //         .priority(3)
+    //         .initialise(task6);});
+    //     b.iter(|| {let Task7 = task_control::TCB::new()
+    //         .name("Task0")
+    //         .priority(3)
+    //         .initialise(task7);});
+    //     kernel::task_start_scheduler();
+    // }
 
-    /*
     use std::sync::Arc;
     #[test]
     fn test_recursive_mutex() {
@@ -191,9 +190,7 @@ mod tests {
 
         kernel::task_start_scheduler();
     }
-    */
 
-    /*
     #[test]
     fn test_mutex() {
         use semaphore::Semaphore;
@@ -280,8 +277,7 @@ mod tests {
 
         kernel::task_start_scheduler();
     }
-*/
-    /*
+    /**/ 
         #[test]
         fn test_counting_semaphore() {
             use simplelog::*;
@@ -406,9 +402,7 @@ mod tests {
             kernel::task_start_scheduler();
 
         }
-    */
 
-    /*
         #[test]
         fn test_queue() {
             use std::fs::File;
@@ -461,5 +455,4 @@ mod tests {
 
             kernel::task_start_scheduler();
         }
-    */
 }

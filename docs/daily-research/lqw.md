@@ -1,5 +1,100 @@
 ***
-5.14
+
+## 6.5
+
+### Idle Task
+
+Idle task会被其他任务pre-empted，就是其他任务要执行就马上被抢占
+
+pre-emption自动发生，不需要知道被抢占的任务是谁
+
+Idle task还要负责资源的回收，当`TaskDelete()`后，Idle Task负责回收内核资源
+
+Idle Task **Hook**
+
+功能：
+1.  执行`low priority, background, continuous processing functionality`
+2.  测试可用处理能力
+3.  将处理器放在`low power mode`，不过比`tick-less idle mode`效果要相对差一些
+
+对Idle Task **Hook**的限制
+
+1.  Idle Task Hook function不能尝试阻塞或挂起
+2.  TaskDelete时必须要合理的时间范围内返回给调用者，然后Idle Task再清理被删除任务的资源
+
+
+### tcb.c/tcb.rs
+
+先看一下tcb的数据结构与FreeRTOS的差异
+
+在`include/object/structures.h`中
+-   `tcbArch`体系结构相关状态
+-   `tcbState`线程状态
+-   `tcbBoundNotification`与TCB相连的notification,Notification that this TCB is bound to. If this is set, when this TCB waits on
+-   `tcbFault`，当前错误，8字节,tag有
+    -   NullFault
+    -   CapFault
+    -   UnknownSyscall
+    -   UserException
+    -   VMFault
+-   `lookup_fault_t`，查找错误，tag有
+    -   invalid_root
+    -   missing_capability
+    -   depth_mismatch
+    -   guard_mismatch
+-   `tcbDomain`，域?Domains are used to isolate independent subsystems, so as to limit information flow between them
+-   `tcbMCP`，最大可控优先级
+-   `tcbPriority`，优先级
+-   `tcbTimeSlice`，剩余时间片
+-   `tcbFaultHandler`，cap指针，指向线程错误handler
+-   `tcbIPCBuffer`用户态的线程IPC buffer虚地址
+-   `tcbSchedNext`调度器队列的后指
+-   `tcbSchedPrev`调度器队列的前指
+-   `tcbEPNext, tcbEPPrev`endpoint, notification队列的后指和前指
+-   `tcbName`名字
+
+FreeRTOS中tcb数据结构
+
+-   `state_list_item`
+-   `event_list_item`
+-   `task_priority`
+-   `task_stacksize`
+-   `task_name`
+-   `stack_pos`
+-   `critical_nesting`
+-   `base_priority`
+-   `mutexes_held`
+-   `runtime_counter`
+-   `notified_value`
+-   `notify_state`
+-   `delayed_aborted`
+
+tcb的数据结构为tcb_t，定义在`structure.rs/c`中
+
+-   `checkPrio`检查优先级是否超过当前线程最大可控优先级
+-   `addToBitmap`指定cpu和dom域，指定优先级prio进行相应Bitmap置1
+-   `removeFromBitmap`相反，置0
+-   `tcbSchedEnqueue`将tcb加入调度器队列，可以使用FreeRTOS原来的队列，但是数据结构可能会有相应的调整
+
+
+
+
+***
+
+## 6.2
+
+initialise
+
+FreeRTOS在学长的实现中使用的是heap_3.c，heap_3.c主要使用malloc和free进行分配内存，比较容易实现，代价是因为这两个函数比较通用，因此对于专用的系统，开销过大，但是我们应该还是主要采用这种方式
+
+一点思考：主要是在Idle Task上作Untyped Memory的初始化，但是这个Idle Task还是通过Initialise进行初始化，起了个名字叫Idle，所以下一步工作应该是把Initialise进行修改添加Cap支持
+
+不懂的地方：
+kernel.rs:175:213   config不太懂，idle_task_fn不知道干什么
+task_control:287    handle clone()?，可不可以使用当前handle而不是克隆一个（也许是没有了解清楚）
+
+***
+## 5.14
 
 - priority inversion
 
@@ -54,7 +149,7 @@ idle_task会删除释放被删除任务的内存
 
 
 ***
-5.9
+## 5.9
 
 APIs
 
