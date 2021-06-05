@@ -60,6 +60,8 @@ pub struct task_control_block {
     notify_state: u8,
     #[cfg(feature = "INCLUDE_xTaskAbortDelay")]
     delay_aborted: bool,
+
+    // #[cfg(feature = "config_CAP")]
 }
 
 pub type TCB = task_control_block;
