@@ -60,7 +60,24 @@ pub struct task_control_block {
     #[cfg(feature = "INCLUDE_xTaskAbortDelay")]
     delay_aborted: bool,
 
-    // #[cfg(feature = "config_CAP")]
+    #[cfg(feature = "configUSE_CAPS")]
+    arch : ???,
+    task_state : ThreadStateType, // TODO: add ThreadStateType | translated to task (from thread)
+    // bound_notification : Option<Notification> // notifications are not necessarily bound to tcb freertos已经有notification了我们还要写吗？
+    task_fault : FaultType,
+    lookup_failure : LookupFault,
+    domain : Domain,
+    max_ctrl_prio : UBaseType, // same as freertos prio
+    time_slice : UBaseType, // freertos应该也有内置的时间片吧 在哪？
+    fault_handler : UBaseType, // used only once in qwq
+    ipc_buffer : UBaseType, // 总觉得这个和stream buffer很像
+    schedule_next : Box<task_control_block>,
+    schedule_prev : Box<task_control_block>,
+    endpoint_next : Box<task_control_block>,
+    endpoint_prev : Box<task_control_block>,
+    tcb_debug_next : Box<task_control_block>,
+    tcb_debug_prev : Box<task_control_block>,
+    // name : useless
 }
 
 pub type TCB = task_control_block;
