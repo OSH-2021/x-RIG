@@ -30,6 +30,13 @@ Idle Task **Hook**
 在`include/object/structures.h`中
 -   `tcbArch`体系结构相关状态
 -   `tcbState`线程状态
+    -   Inactive
+    -   Running
+    -   Restart
+    -   BlockedOnReceive
+    -   BlockedOnReply
+    -   BlockedOnNotification
+    -   IdleThreadState
 -   `tcbBoundNotification`与TCB相连的notification,Notification that this TCB is bound to. If this is set, when this TCB waits on
 -   `tcbFault`，当前错误，8字节,tag有
     -   NullFault
@@ -69,12 +76,22 @@ FreeRTOS中tcb数据结构
 -   `notify_state`
 -   `delayed_aborted`
 
-tcb的数据结构为tcb_t，定义在`structure.rs/c`中
+tcb的数据结构为tcb_t，定义在`structure.rs/.c`中
 
 -   `checkPrio`检查优先级是否超过当前线程最大可控优先级
 -   `addToBitmap`指定cpu和dom域，指定优先级prio进行相应Bitmap置1
 -   `removeFromBitmap`相反，置0
--   `tcbSchedEnqueue`将tcb加入调度器队列，可以使用FreeRTOS原来的队列，但是数据结构可能会有相应的调整
+-   `tcbSchedEnqueue`将tcb加入调度ready队列头，可以使用FreeRTOS原来的队列，但是数据结构可能会有相应的调整
+-   `tcbSchedAppend`将线程加入ready队列尾
+-   `tcbSchedDequeue`将线程ready队列中取出
+-   `tcbEPAppend`加入endpoint队列队尾
+-   `tcbEPDequeue`从endpoint队列中取出，随机访问双向链表
+-   `getExtraCPtr`从IPC buffer最大消息容量+2出取出第i个extraCap
+-   `setExtraBadge`将badge写入IPC buffer的第i个extraCaps位置
+-   `copyMRs`从一个线程将`msg Registers`拷贝到另外一个寄存器
+-   `setMRs_syscall_error`将错误信息写到接受者IPC Buffer消息寄存器
+
+`decodeCopyRegister`会调用`InvokeTCB_CopyRigster`
 
 
 

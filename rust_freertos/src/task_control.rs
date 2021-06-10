@@ -17,6 +17,13 @@ pub enum task_state {
     blocked = 2,
     suspended = 3,
     deleted = 4,
+    InActive,                           //  seL4
+    Restart,                            //  seL4
+    BlockedOnReceive,                   //  seL4
+    BlockedOnSend,                      //  seL4
+    BlockedOnReply,                     //  seL4
+    BlockedOnNotificn,                  //  seL4
+    Idle,                               //  seL4
 }
 
 pub enum updated_top_priority {
