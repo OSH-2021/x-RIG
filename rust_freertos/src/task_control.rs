@@ -11,7 +11,7 @@ use std::sync::{Arc, RwLock, Weak};
 /* Task states returned by eTaskGetState. */
 #[derive(Copy, Clone, Debug)]
 #[repr(u8)]
-pub enum task_state {
+pub enum ThreadStateType {
     running = 0,
     ready = 1,
     blocked = 2,
@@ -67,24 +67,39 @@ pub struct task_control_block {
     #[cfg(feature = "INCLUDE_xTaskAbortDelay")]
     delay_aborted: bool,
 
+    // #[cfg(feature = "configUSE_CAPS")]
+    // arch : ???,  //  暂时先不考虑?
     #[cfg(feature = "configUSE_CAPS")]
-    arch : ???,
     task_state : ThreadStateType, // TODO: add ThreadStateType | translated to task (from thread)
     // bound_notification : Option<Notification> // notifications are not necessarily bound to tcb freertos已经有notification了我们还要写吗？
+    #[cfg(feature = "configUSE_CAPS")]
     task_fault : FaultType,
+    #[cfg(feature = "configUSE_CAPS")]
     lookup_failure : LookupFault,
+    #[cfg(feature = "configUSE_CAPS")]
     domain : Domain,
+    #[cfg(feature = "configUSE_CAPS")]
     max_ctrl_prio : UBaseType, // same as freertos prio
+    #[cfg(feature = "configUSE_CAPS")]
     time_slice : UBaseType, // freertos应该也有内置的时间片吧 在哪？
+    #[cfg(feature = "configUSE_CAPS")]
     fault_handler : UBaseType, // used only once in qwq
+    #[cfg(feature = "configUSE_CAPS")]
     ipc_buffer : UBaseType, // 总觉得这个和stream buffer很像
-    schedule_next : Box<task_control_block>,
-    schedule_prev : Box<task_control_block>,
-    endpoint_next : Box<task_control_block>,
-    endpoint_prev : Box<task_control_block>,
-    tcb_debug_next : Box<task_control_block>,
-    tcb_debug_prev : Box<task_control_block>,
-    // name : useless
+
+    //  这里直接使用queue即可
+    // #[cfg(feature = "configUSE_CAPS")]
+    // schedule_next : Box<task_control_block>,
+    // #[cfg(feature = "configUSE_CAPS")]
+    // schedule_prev : Box<task_control_block>,
+    // #[cfg(feature = "configUSE_CAPS")]
+    // endpoint_next : Box<task_control_block>,
+    // #[cfg(feature = "configUSE_CAPS")]
+    // endpoint_prev : Box<task_control_block>,
+    // #[cfg(feature = "configUSE_CAPS")]
+    // tcb_debug_next : Box<task_control_block>,
+    // #[cfg(feature = "configUSE_CAPS")]
+    // tcb_debug_prev : Box<task_control_block>,
 }
 
 pub type TCB = task_control_block;
@@ -373,10 +388,12 @@ impl task_control_block {
         self.mutexes_held = new_count;
     }
 
+    #[cfg(feature = "configUSE_MUTEXES")]
     pub fn get_base_priority(&self) -> UBaseType {
         self.base_priority
     }
 
+    #[cfg(feature = "configUSE_MUTEXES")]
     pub fn set_base_priority(&mut self, new_val: UBaseType) {
         self.base_priority = new_val
     }
