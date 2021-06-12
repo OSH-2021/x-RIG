@@ -1,6 +1,12 @@
 ***
 
-6.12
+## 6.12
+
+### repr(C)
+
+通过`repr(C)`在C调用Rust的时候实现结构体的数据布局像C一样实现
+
+`repr(u8)`规定了enum的大小固定为u8
 
 ***
 
@@ -195,7 +201,7 @@ task_priority_disinherit(mutex_holder)
 
 ////    task_control.rs
 将任务加入等待队列，如果该任务的优先级大于当前最高等待队列最高优先级，则设置等待队列最高优先级(TOP_READY_PRIORITY)为该任务的优先级，并且插入等待队列的最末端
-add_task_to_ready_list()
+append_task_to_ready_list()
 
 将新任务加入ready list并且将`current_number_of_tasks`加1，然后启用调度器，如果调度器没有正在跑且新任务比原来正在跑的任务优先级大，那么就手动将该新任务变成当前任务
 add_new_task_to_ready_list()

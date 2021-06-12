@@ -2,9 +2,9 @@
 #![allow(non_camel_case_types)]
 #![allow(dead_code)]
 #![allow(non_upper_case_globals)]
-use crate::object::arch_structures::*;
-use crate::types;
-use crate::types::word_t;
+use super::object::arch_structures::*;
+use super::types;
+use super::types::word_t;
 
 //include/object/structures.h
 

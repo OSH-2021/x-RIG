@@ -5,17 +5,17 @@
 #![allow(unused_attributes)]
 #![allow(unused_imports)]
 
-use crate::object::arch_structures::*;
-use crate::object::cap::*;
-use crate::object::cnode::*;
-use crate::object::objecttype::*;
-use crate::object::tcb::*;
-use crate::registerset::*;
-use crate::structures::{
+use super::object::arch_structures::*;
+use super::object::cap::*;
+use super::object::cnode::*;
+use super::object::objecttype::*;
+use super::object::tcb::*;
+use super::registerset::*;
+use super::structures::{
     _thread_state, _thread_state_t, cap_t, cap_tag_t, cte_t, dschedule, tcb_queue_t, tcb_t,
 };
-use crate::types::*;
-use crate::object::endpoint::cancelIPC;
+use super::types::*;
+use super::object::endpoint::cancelIPC;
 
 extern "C" {
     static mut current_extra_caps: extra_caps_t;

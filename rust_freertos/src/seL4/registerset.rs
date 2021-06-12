@@ -1,8 +1,8 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]
-use crate::structures::tcb_t;
-use crate::types::word_t;
+use super::structures::tcb_t;
+use super::types::word_t;
 
 //include/arch/x86/arch/64/mode/machine/registerset.h
 pub type register_t = u32;

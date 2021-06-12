@@ -5,18 +5,18 @@
 #![allow(unused_imports)]
 #![allow(unused_attributes)]
 
-use crate::errors::*;
-use crate::failures::*;
-use crate::object::arch_structures::*;
-use crate::object::cap::*;
-use crate::object::cnode::*;
-use crate::object::endpoint::{cancelAllIPC,sendIPC};
-use crate::object::interrupt::*;
-use crate::object::notification::*;
-use crate::object::untyped::*;
-use crate::structures::*;
-use crate::thread::*;
-use crate::types::*;
+use super::super::errors::*;
+use super::super::failures::*;
+use super::super::object::arch_structures::*;
+use super::super::object::cap::*;
+use super::super::object::cnode::*;
+use super::super::object::endpoint::{cancelAllIPC,sendIPC};
+use super::super::object::interrupt::*;
+use super::super::object::notification::*;
+use super::super::object::untyped::*;
+use super::super::structures::*;
+use super::super::thread::*;
+use super::super::types::*;
 
 extern "C" {
     static mut current_syscall_error: syscall_error_t;

@@ -18,7 +18,7 @@ pub static mut CURRENT_NUMBER_OF_TASKS: UBaseType = 0;
 /* GLOBAL TASK LISTS ARE CHANGED TO INTEGERS, WHICH ARE THEIR IDS. */
 
 /* Current_TCB and global task lists. */
-lazy_static! {  //  ??? what is lazy_static
+lazy_static! {
     /* Initialise CURRENT_TCB as early as it is declared rather than when the scheduler starts running.
      * This isn't reasonable actually, but avoided the complexity of using an additional Option<>.
      * Use RwLock to wrap TaskHandle because sometimes we need to change CURRENT_TCB.
@@ -41,6 +41,12 @@ lazy_static! {  //  ??? what is lazy_static
      * They will be moved to the ready list when the scheduler is resumed.
      */
     pub static ref PENDING_READY_LIST: ListLink = Default::default();
+
+    /* EndPoint task list(EPQueue)
+     * TBC
+     */
+    #[cfg(feature = "configUSE_CAPS")]
+    pub static ref ENDPOINT_LIST: ListLink = Default::default();
 }
 
 #[cfg(feature = "INCLUDE_vTaskDelete")]

@@ -458,7 +458,7 @@ fn move_tasks_to_ready_list() -> bool {
         list::list_remove(state_list_item);
         list::list_remove(event_list_item);
 
-        task_handle.add_task_to_ready_list().unwrap();
+        task_handle.append_task_to_ready_list().unwrap();
 
         /* If the moved task has a priority higher than the current
         task then a yield must be performed. */
@@ -713,7 +713,7 @@ pub fn task_increment_tick() -> bool {
                     }
                     /* Place the unblocked task into the appropriate ready
                     list. */
-                    task_handle.add_task_to_ready_list().unwrap();
+                    task_handle.append_task_to_ready_list().unwrap();
 
                     /* A task being unblocked cannot cause an immediate
                     context switch if preemption is turned off. */

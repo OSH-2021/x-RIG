@@ -2,9 +2,9 @@
 #![allow(dead_code)]
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
-use crate::object::arch_structures::pde_t;
-use crate::object::arch_structures::pte_t;
-use crate::structures::cte_t;
+use super::object::arch_structures::pde_t;
+use super::object::arch_structures::pte_t;
+use super::structures::cte_t;
 
 //include/arch/x86/arch/64/mode/types.h
 pub const wordRadix: u64 = 6;

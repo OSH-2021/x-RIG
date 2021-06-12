@@ -4,15 +4,15 @@
 #![allow(non_upper_case_globals)]
 #![allow(unused_attributes)]
 
-use crate::object::arch_structures::*;
-use crate::object::tcb::{setupCallerCap, tcbEPAppend, tcbEPDequeue,setMRs_syscall_error,tcbSchedEnqueue};
-use crate::structures::*;
-use crate::thread::{doIPCTransfer, possibleSwitchTo, scheduleTCB, setThreadState,doNBRecvFailedTransfer,rescheduleRequired};
-use crate::types::*;
-use crate::object::notification::{cancelSignal,completeSignal};
-use crate::registerset::setRegister;
-use crate::failures::syscall_error_t;
-use crate::object::cnode::cteDeleteOne;
+use super::super::object::arch_structures::*;
+use super::super::object::tcb::{setupCallerCap, tcbEPAppend, tcbEPDequeue,setMRs_syscall_error,tcbSchedEnqueue};
+use super::super::structures::*;
+use super::super::thread::{doIPCTransfer, possibleSwitchTo, scheduleTCB, setThreadState,doNBRecvFailedTransfer,rescheduleRequired};
+use super::super::types::*;
+use super::super::object::notification::{cancelSignal,completeSignal};
+use super::super::registerset::setRegister;
+use super::super::failures::syscall_error_t;
+use super::super::object::cnode::cteDeleteOne;
 
 extern "C" {
     //arch/x86/arch/kernel/vspace.c

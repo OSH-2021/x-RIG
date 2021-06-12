@@ -141,7 +141,7 @@ pub fn task_priority_set(xTask: Option<TaskHandle>, uxNewPriority: UBaseType) {
             } else {
                 mtCOVERAGE_TEST_MARKER!();
             }
-            pxTCB.add_task_to_ready_list();
+            pxTCB.append_task_to_ready_list();
         } else {
             mtCOVERAGE_TEST_MARKER!();
         }

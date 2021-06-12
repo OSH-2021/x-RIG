@@ -5,23 +5,23 @@
 // #![allow(unused_imports)]
 // #![allow(unused_attributes)]
 
-use crate::cspace::*;
-use crate::errors::*;
-use crate::failures::*;
-use crate::object::arch_structures::*;
-// use crate::object::cap::*;
-use crate::object::cnode::*;
-use crate::object::notification::*;
-use crate::object::objecttype::*;
-use crate::registerset::*;
-use crate::structures::*;
-use crate::syscall::*;
-use crate::thread::*;
-use crate::types::*;
+use super::super::cspace::*;
+use super::super::errors::*;
+use super::super::failures::*;
+use super::super::object::arch_structures::*;
+// use super::super::object::cap::*;
+use super::super::object::cnode::*;
+use super::super::object::notification::*;
+use super::super::object::objecttype::*;
+use super::super::registerset::*;
+use super::super::structures::*;
+use super::super::syscall::*;
+use super::super::thread::*;
+use super::super::types::*;
 
 extern "C" {
-    static mut ksCurThread: *mut tcb_t;
-    static mut ksReadyQueues: [tcb_queue_t; 256];
+    static mut ksCurThread: *mut tcb_t;     //  CURRENT_TCB
+    static mut ksReadyQueues: [tcb_queue_t; 256];   //  READY_TASK_LISTS
     static mut ksReadyQueuesL1Bitmap: [u64; 1];
     static mut ksReadyQueuesL2Bitmap: [[u64; L2_BITMAP_SIZE]; 1];
     static mut current_extra_caps: extra_caps_t;
@@ -38,6 +38,14 @@ extern "C" {
     // fn kprintf(format: *const u8, ...) -> u64;
 }
 
+/// # Description:
+///     x bits of 1
+/// * Implemented by: 
+/// 
+/// # Arguments:
+///     x: x bits of 1
+/// # Return:
+///   e.g. x=2 return (11)binary
 macro_rules! MASK {
     ($x:expr) => {
         (1u64 << ($x)) - 1u64

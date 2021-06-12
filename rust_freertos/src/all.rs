@@ -578,7 +578,7 @@ fn move_tasks_to_ready_list() -> bool {
         list::list_remove(state_list_item);
         list::list_remove(event_list_item);
 
-        task_handle.add_task_to_ready_list().unwrap();
+        task_handle.append_task_to_ready_list().unwrap();
 
         /* If the moved task has a priority higher than the current
         task then a yield must be performed. */
@@ -833,7 +833,7 @@ pub fn task_increment_tick() -> bool {
                     }
                     /* Place the unblocked task into the appropriate ready
                     list. */
-                    task_handle.add_task_to_ready_list().unwrap();
+                    task_handle.append_task_to_ready_list().unwrap();
 
                     /* A task being unblocked cannot cause an immediate
                     context switch if preemption is turned off. */
@@ -3888,7 +3888,7 @@ pub fn task_priority_set(xTask: Option<TaskHandle>, uxNewPriority: UBaseType) {
             } else {
                 mtCOVERAGE_TEST_MARKER!();
             }
-            pxTCB.add_task_to_ready_list();
+            pxTCB.append_task_to_ready_list();
         } else {
             mtCOVERAGE_TEST_MARKER!();
         }
@@ -4611,7 +4611,7 @@ impl TaskHandle {
     /// # Return
     ///
     /// TODO
-    pub fn add_task_to_ready_list(&self) -> Result<(), FreeRtosError> {
+    pub fn append_task_to_ready_list(&self) -> Result<(), FreeRtosError> {
         let unwrapped_tcb = get_tcb_from_handle!(self);
         let priority = self.get_priority();
 
@@ -4678,7 +4678,7 @@ impl TaskHandle {
             }
             set_task_number!(get_task_number!() + 1);
             traceTASK_CREATE!(self.clone());
-            self.add_task_to_ready_list()?;
+            self.append_task_to_ready_list()?;
         }
         taskEXIT_CRITICAL!();
         if get_scheduler_running!() {
@@ -5157,7 +5157,7 @@ pub fn resume_task(task_to_resume: TaskHandle) {
                 /* As we are in a critical section we can access the ready
                 lists even if the scheduler is suspended. */
                 list_remove(unwrapped_tcb.get_state_list_item());
-                task_to_resume.add_task_to_ready_list();
+                task_to_resume.append_task_to_ready_list();
 
                 let current_task_priority = get_current_task_handle!().get_priority();
                 /* We may have just resumed a higher priority task. */
@@ -5578,7 +5578,7 @@ pub fn task_remove_from_event_list(event_list: &ListLink) -> bool {
 
     if get_scheduler_suspended!() == pdFALSE as UBaseType {
         list::list_remove(unblocked_tcb.get_state_list_item());
-        unblocked_tcb.add_task_to_ready_list().unwrap();
+        unblocked_tcb.append_task_to_ready_list().unwrap();
     } else {
         list::list_insert_end(&PENDING_READY_LIST, unblocked_tcb.get_event_list_item());
     }
@@ -5758,7 +5758,7 @@ pub fn task_priority_inherit(mutex_holder: Option<TaskHandle>) {
 
                 /* Inherit the priority before being moved into the new list. */
                 task.set_priority(current_task_priority);
-                task.add_task_to_ready_list().unwrap();
+                task.append_task_to_ready_list().unwrap();
             }
         } else {
             mtCOVERAGE_TEST_MARKER!();
@@ -5818,7 +5818,7 @@ pub fn task_priority_disinherit(mutex_holder: Option<TaskHandle>) -> bool {
                 running to give back the mutex. */
                 let new_item_val = (configMAX_PRIORITIES!() - this_task_priority) as TickType;
                 list::set_list_item_value(&task.get_event_list_item(), new_item_val);
-                task.add_task_to_ready_list().unwrap();
+                task.append_task_to_ready_list().unwrap();
 
                 /* Return true to indicate that a context switch is required.
                 This is only actually required in the corner case whereby

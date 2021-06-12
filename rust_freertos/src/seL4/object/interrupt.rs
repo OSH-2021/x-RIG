@@ -4,20 +4,20 @@
 #![allow(non_upper_case_globals)]
 #![allow(unused_attributes)]
 
-use crate::cspace::*;
-use crate::errors::*;
-use crate::failures::*;
-use crate::invocation::*;
-use crate::model::statedata::*;
-use crate::object::arch_structures::*;
-use crate::object::cap::*;
-use crate::object::cnode::*;
-use crate::object::objecttype::*;
-use crate::registerset::*;
-use crate::structures::*;
-use crate::syscall::*;
-use crate::thread::*;
-use crate::types::*;
+use super::super::cspace::*;
+use super::super::errors::*;
+use super::super::failures::*;
+use super::super::invocation::*;
+use super::super::model::statedata::*;
+use super::super::object::arch_structures::*;
+use super::super::object::cap::*;
+use super::super::object::cnode::*;
+use super::super::object::objecttype::*;
+use super::super::registerset::*;
+use super::super::structures::*;
+use super::super::syscall::*;
+use super::super::thread::*;
+use super::super::types::*;
 
 extern "C" {
     static mut intStateIRQTable: [u64; 126];

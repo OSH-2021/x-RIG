@@ -11,12 +11,19 @@ use std::sync::{Arc, RwLock, Weak};
 /* Task states returned by eTaskGetState. */
 #[derive(Copy, Clone, Debug)]
 #[repr(u8)]
-pub enum ThreadStateType {
+pub enum TaskState {
     running = 0,
     ready = 1,
     blocked = 2,
     suspended = 3,
     deleted = 4,
+    InActive,                           //  seL4
+    Restart,                            //  seL4
+    BlockedOnReceive,                   //  seL4
+    BlockedOnSend,                      //  seL4
+    BlockedOnReply,                     //  seL4
+    BlockedOnNotificn,                  //  seL4
+    Idle,                               //  seL4
 }
 
 pub enum updated_top_priority {
@@ -60,6 +67,39 @@ pub struct task_control_block {
     #[cfg(feature = "INCLUDE_xTaskAbortDelay")]
     delay_aborted: bool,
 
+    // #[cfg(feature = "configUSE_CAPS")]
+    // arch : ???,  //  暂时先不考虑?
+    #[cfg(feature = "configUSE_CAPS")]
+    task_state : TaskState, // TODO: add ThreadStateType | translated to task (from thread)
+    // bound_notification : Option<Notification> // notifications are not necessarily bound to tcb freertos已经有notification了我们还要写吗？
+    #[cfg(feature = "configUSE_CAPS")]
+    task_fault : FaultType,
+    #[cfg(feature = "configUSE_CAPS")]
+    lookup_failure : LookupFault,
+    #[cfg(feature = "configUSE_CAPS")]
+    domain : Domain,
+    #[cfg(feature = "configUSE_CAPS")]
+    max_ctrl_prio : UBaseType, // same as freertos prio
+    #[cfg(feature = "configUSE_CAPS")]
+    time_slice : UBaseType, // freertos应该也有内置的时间片吧 在哪？
+    #[cfg(feature = "configUSE_CAPS")]
+    fault_handler : UBaseType, // used only once in qwq
+    #[cfg(feature = "configUSE_CAPS")]
+    ipc_buffer : UBaseType, // 总觉得这个和stream buffer很像
+
+    //  这里直接使用queue即可
+    // #[cfg(feature = "configUSE_CAPS")]
+    // schedule_next : Box<task_control_block>,
+    // #[cfg(feature = "configUSE_CAPS")]
+    // schedule_prev : Box<task_control_block>,
+    // #[cfg(feature = "configUSE_CAPS")]
+    // endpoint_next : Box<task_control_block>,
+    // #[cfg(feature = "configUSE_CAPS")]
+    // endpoint_prev : Box<task_control_block>,
+    // #[cfg(feature = "configUSE_CAPS")]
+    // tcb_debug_next : Box<task_control_block>,
+    // #[cfg(feature = "configUSE_CAPS")]
+    // tcb_debug_prev : Box<task_control_block>,
 }
 
 pub type TCB = task_control_block;
@@ -525,6 +565,20 @@ impl TaskHandle {
         Ok(())
     }
 
+    /// # Description:
+    ///     insert task to the head of the ready list
+    /// * Implemented by: 
+    ///     Lslightly
+    /// # Arguments:
+    ///   self  the task self
+    /// # Return:
+    ///   Ok(())
+    ///   Err(FreeRtosError)
+    #[cfg(feature = "configUSE_CAPS")]
+    pub fn insert_task_to_ready_list(&self) -> Result<(), FreeRtosError> {
+        //  TCB
+    }
+
     /// Called after a new task has been created and initialised to place the task
     /// under the control of the scheduler.
     ///
@@ -569,7 +623,7 @@ impl TaskHandle {
             self.append_task_to_ready_list()?;
         }
         taskEXIT_CRITICAL!();
-        if get_scheduler_running!() {   //  ???
+        if get_scheduler_running!() {
             let current_task_priority = get_current_task_handle!().get_priority();
             if current_task_priority < unwrapped_tcb.task_priority {
                 taskYIELD_IF_USING_PREEMPTION!();
@@ -581,6 +635,33 @@ impl TaskHandle {
         }
 
         Ok(())
+    }
+
+    /// # Description:
+    ///     append task to the end of endpoint list
+    /// * Implemented by: 
+    ///     Lslightly
+    /// # Arguments:
+    ///     self
+    /// # Return:
+    ///     Ok(tcb_queue?)
+    ///     Err(FreeRtosError)
+    #[cfg(feature = "configUSE_CAPS")]
+    pub fn append_task_to_endpoint_list(&self) -> Result<Queue, FreeRtosError> {
+        // TCB
+    }
+
+    /// # Description:
+    ///    delete task from endpoint list
+    /// * Implemented by: 
+    ///    Lslightly
+    /// # Arguments:
+    ///    
+    /// # Return:
+    ///    
+    #[cfg(feature = "configUSE_CAPS")]
+    pub fn delete_task_from_endpoint_list(&self) -> Result<, FreeRtosError> {
+        // TCB
     }
 
     pub fn get_event_list_item(&self) -> ItemLink {

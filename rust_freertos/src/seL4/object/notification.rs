@@ -4,19 +4,19 @@
 #![allow(non_upper_case_globals)]
 #![allow(unused_attributes)]
 
-use crate::errors::*;
-use crate::failures::*;
-use crate::model::statedata::*;
-use crate::object::arch_structures::*;
-use crate::object::cap::*;
-use crate::object::objecttype::*;
-use crate::object::tcb::{tcbEPAppend, tcbEPDequeue, tcbSchedEnqueue};
-use crate::registerset::*;
-use crate::structures::*;
-use crate::thread::possibleSwitchTo;
-use crate::thread::*;
-use crate::types::*;
-use crate::object::endpoint::cancelIPC;
+use super::super::errors::*;
+use super::super::failures::*;
+use super::super::model::statedata::*;
+use super::super::object::arch_structures::*;
+use super::super::object::cap::*;
+use super::super::object::objecttype::*;
+use super::super::object::tcb::{tcbEPAppend, tcbEPDequeue, tcbSchedEnqueue};
+use super::super::registerset::*;
+use super::super::structures::*;
+use super::super::thread::possibleSwitchTo;
+use super::super::thread::*;
+use super::super::types::*;
+use super::super::object::endpoint::cancelIPC;
 
 #[inline]
 pub unsafe fn ntfn_ptr_get_queue(ntfnPtr: *mut notification_t) -> tcb_queue_t {

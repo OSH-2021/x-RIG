@@ -29,6 +29,10 @@ mod task_queue;
 //mod mutex;
 pub mod semaphore;
 pub mod task_timemanager;
+#[cfg(feature = "configUSE_CAPS")]
+pub mod seL4;
+#[cfg(feature = "configUSE_CAPS")]
+pub mod task_control_cap;
 
 #[cfg(test)]
 mod tests {

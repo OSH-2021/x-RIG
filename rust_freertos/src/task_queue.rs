@@ -31,7 +31,7 @@ pub fn task_remove_from_event_list(event_list: &ListLink) -> bool {
 
     if get_scheduler_suspended!() == pdFALSE as UBaseType {
         list::list_remove(unblocked_tcb.get_state_list_item());
-        unblocked_tcb.add_task_to_ready_list().unwrap();
+        unblocked_tcb.append_task_to_ready_list().unwrap();
     } else {
         list::list_insert_end(&PENDING_READY_LIST, unblocked_tcb.get_event_list_item());
     }
@@ -211,7 +211,7 @@ pub fn task_priority_inherit(mutex_holder: Option<TaskHandle>) {
 
                 /* Inherit the priority before being moved into the new list. */
                 task.set_priority(current_task_priority);
-                task.add_task_to_ready_list().unwrap();
+                task.append_task_to_ready_list().unwrap();
             }
         } else {
             mtCOVERAGE_TEST_MARKER!();
@@ -271,7 +271,7 @@ pub fn task_priority_disinherit(mutex_holder: Option<TaskHandle>) -> bool {
                 running to give back the mutex. */
                 let new_item_val = (configMAX_PRIORITIES!() - this_task_priority) as TickType;
                 list::set_list_item_value(&task.get_event_list_item(), new_item_val);
-                task.add_task_to_ready_list().unwrap();
+                task.append_task_to_ready_list().unwrap();
 
                 /* Return true to indicate that a context switch is required.
                 This is only actually required in the corner case whereby

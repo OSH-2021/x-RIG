@@ -3,16 +3,16 @@
 #![allow(dead_code)]
 #![allow(non_upper_case_globals)]
 
-use crate::structures::cap_t;
-use crate::structures::cap_tag_t;
-use crate::structures::lookup_fault_t;
-use crate::structures::mdb_node_t;
-use crate::structures::notification_t;
-use crate::structures::tcb_cnode_index;
-use crate::structures::thread_state_t;
-use crate::types;
-use crate::types::bool_t;
-use crate::types::word_t;
+use super::super::structures::cap_t;
+use super::super::structures::cap_tag_t;
+use super::super::structures::lookup_fault_t;
+use super::super::structures::mdb_node_t;
+use super::super::structures::notification_t;
+use super::super::structures::tcb_cnode_index;
+use super::super::structures::thread_state_t;
+use super::super::types;
+use super::super::types::bool_t;
+use super::super::types::word_t;
 
 //generated/arch/object/structures_gen.h
 #[repr(C)]
