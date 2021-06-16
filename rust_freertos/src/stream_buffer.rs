@@ -145,7 +145,7 @@ impl StreamBufferDef{
     ///     xTriggerLevel    : The new trigger level for the stream buffer.
     /// * Return
     ///     The number of bytes that can be read from the stream buffer before the stream buffer would be full.
-    pub fn StreamBufferBytesAvailable(&mut self) -> UBaseType{
+    pub fn StreamBufferSpacesAvailable(&mut self) -> UBaseType{
         let mut xSpace : UBaseType;
 
         xSpace = self.xLength + self.xTail;
