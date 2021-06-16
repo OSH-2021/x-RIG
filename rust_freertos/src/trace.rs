@@ -472,3 +472,8 @@ macro_rules! mtCOVERAGE_TEST_MARKER {
 macro_rules! mtCOVERAGE_TEST_DELAY {
     () => {};
 }
+
+#[macro_export]
+macro_rules! traceSTREAM_BUFFER_RESET {
+    () => {};
+}
