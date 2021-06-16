@@ -253,7 +253,7 @@ fn create_timer_task() {
     // On fail, panic!("No enough heap space to allocate timer task.");
 }
 
-/// The third part of task_step_scheduler, do some initialziation
+/// The third part of task_start_scheduler, do some initialziation
 /// and call port_start_scheduler() to set up the timer tick.
 ///
 /// * Implemented by: Fan Jinhao.
