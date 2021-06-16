@@ -33,7 +33,7 @@ pub mod task_timemanager;
 pub mod seL4;
 #[cfg(feature = "configUSE_CAPS")]
 pub mod task_control_cap;
-
+pub mod stream_buffer;
 #[cfg(test)]
 mod tests {
     use super::*;
