@@ -45,8 +45,6 @@ lazy_static! {
     /* EndPoint task list(EPQueue)
      * TBC
      */
-    #[cfg(feature = "configUSE_CAPS")]
-    pub static ref ENDPOINT_LIST: ListLink = Default::default();
 }
 
 #[cfg(feature = "INCLUDE_vTaskDelete")]
@@ -59,6 +57,11 @@ lazy_static! {
 lazy_static! {
     // Tasks that are currently suspended.
     pub static ref SUSPENDED_TASK_LIST: ListLink = Default::default();
+}
+
+#[cfg(feature = "configUSE_CAPS")]
+lazy_static! {
+    pub static ref ENDPOINT_LIST: ListLink = Default::default();
 }
 /* ------------------ End global lists ------------------- */
 

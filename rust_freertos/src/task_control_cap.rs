@@ -69,22 +69,14 @@ pub struct task_control_block {
 
     // #[cfg(feature = "configUSE_CAPS")]
     // arch : ???,  //  暂时先不考虑?
-    #[cfg(feature = "configUSE_CAPS")]
     task_state : TaskState, // TODO: add ThreadStateType | translated to task (from thread)
     // bound_notification : Option<Notification> // notifications are not necessarily bound to tcb freertos已经有notification了我们还要写吗？
-    #[cfg(feature = "configUSE_CAPS")]
     task_fault : FaultType,
-    #[cfg(feature = "configUSE_CAPS")]
     lookup_failure : LookupFault,
-    #[cfg(feature = "configUSE_CAPS")]
     domain : Domain,
-    #[cfg(feature = "configUSE_CAPS")]
     max_ctrl_prio : UBaseType, // same as freertos prio
-    #[cfg(feature = "configUSE_CAPS")]
     time_slice : UBaseType, // freertos应该也有内置的时间片吧 在哪？
-    #[cfg(feature = "configUSE_CAPS")]
     fault_handler : UBaseType, // used only once in qwq
-    #[cfg(feature = "configUSE_CAPS")]
     ipc_buffer : UBaseType, // 总觉得这个和stream buffer很像
 
     //  这里直接使用queue即可
