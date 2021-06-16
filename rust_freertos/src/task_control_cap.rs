@@ -776,7 +776,173 @@ pub unsafe extern "C" fn invokeTCB_ThreadControl(
     0u64
 }
 
+pub unsafe extern "C" fn invokeTCB_CopyRegisters(
+    dest: *mut tcb_t,
+    tcb_src: *mut tcb_t,
+    suspendSource: bool_t,
+    resumeTarget: bool_t,
+    transferFrame: bool_t,
+    transferInteger: bool_t,
+    transferArch: u64,
+) -> u64 {
+    if suspendSource != 0u64 {
+        suspend(tcb_src);
+    }
+    if resumeTarget != 0u64 {
+        restart(dest);
+    }
+    if transferFrame != 0u64 {
+        let mut i: usize = 0;
+        while i < n_frameRegisters {
+            let v = getRegister(tcb_src, frameRegisters[i]);
+            setRegister(dest, frameRegisters[i], v);
+            i += 1;
+        }
+        let pc = getRestartPC(dest);
+        setNextPC(dest, pc);
+    }
+    if transferInteger != 0u64 {
+        let mut i: usize = 0;
+        while i < n_gpRegisters {
+            let v = getRegister(tcb_src, gpRegisters[i]);
+            setRegister(dest, gpRegisters[i], v);
+            i += 1;
+        }
+    }
+    Arch_postModifyRegisters(dest);
+    if dest == node_state!(ksCurThread) {
+        rescheduleRequired();
+    }
+    Arch_performTransfer(transferArch, tcb_src, dest)
+}
 
+pub unsafe extern "C" fn invokeTCB_ReadRegisters(
+    tcb_src: *mut tcb_t,
+    suspendSource: bool_t,
+    n: u64,
+    arch: u64,
+    call: bool_t,
+) -> u64 {
+    let thread = node_state!(ksCurThread);
+    if suspendSource != 0u64 {
+        suspend(tcb_src);
+    }
+    let e = Arch_performTransfer(arch, tcb_src, node_state!(ksCurThread));
+    if e != 0u64 {
+        return e;
+    }
+    if call != 0u64 {
+        let ipcBuffer = lookupIPCBuffer(1u64, thread);
+        let mut i: usize = 0;
+        while i < n as usize && i < n_frameRegisters && i < n_msgRegisters {
+            setRegister(
+                thread,
+                msgRegisters[i],
+                getRegister(tcb_src, frameRegisters[i]),
+            );
+            i += 1;
+        }
+        if ipcBuffer as u64 != 0u64 && i < n as usize && i < n_frameRegisters {
+            while i < n as usize && i < n_frameRegisters {
+                *ipcBuffer.offset((i + 1) as isize) = getRegister(tcb_src, frameRegisters[i]);
+                i += 1;
+            }
+        }
+        let j = i;
+        i = 0;
+        while i < n_gpRegisters
+            && i + n_frameRegisters < n as usize
+            && i + n_frameRegisters < n_msgRegisters
+        {
+            setRegister(
+                thread,
+                msgRegisters[i + n_frameRegisters],
+                getRegister(tcb_src, gpRegisters[i]),
+            );
+            i += 1;
+        }
+        if ipcBuffer as u64 != 0u64 && i < n_gpRegisters && i + n_frameRegisters < n as usize {
+            while i < n_gpRegisters && i + n_frameRegisters < n as usize {
+                *ipcBuffer.offset((i + n_frameRegisters + 1) as isize) =
+                    getRegister(tcb_src, gpRegisters[i]);
+                i += 1;
+            }
+        }
+        setRegister(
+            thread,
+            msgInfoRegister,
+            wordFromMessageInfo(seL4_MessageInfo_new(0, 0, 0, (i + j) as u64)),
+        );
+    }
+    setThreadState(thread, _thread_state::ThreadState_Running as u64);
+    0u64
+}
+
+pub unsafe extern "C" fn invokeTCB_WriteRegisters(
+    dest: *mut tcb_t,
+    resumeTarget: bool_t,
+    mut n: u64,
+    arch: u64,
+    buffer: *mut u64,
+) -> u64 {
+    let e = Arch_performTransfer(arch, node_state!(ksCurThread), dest);
+    if e != 0u64 {
+        return e;
+    }
+    if n as usize > n_frameRegisters + n_gpRegisters {
+        n = (n_frameRegisters + n_gpRegisters) as u64;
+    }
+    let archInfo = Arch_getSanitiseRegisterInfo(dest);
+    let mut i: usize = 0;
+    while i < n_frameRegisters && i < n as usize {
+        setRegister(
+            dest,
+            frameRegisters[i],
+            sanitiseRegister(
+                frameRegisters[i],
+                getSyscallArg((i + 2) as u64, buffer),
+                archInfo,
+            ),
+        );
+        i += 1;
+    }
+    i = 0;
+    while i < n_gpRegisters && i + n_frameRegisters < n as usize {
+        setRegister(
+            dest,
+            gpRegisters[i],
+            sanitiseRegister(
+                gpRegisters[i],
+                getSyscallArg((i + n_frameRegisters + 2) as u64, buffer),
+                archInfo,
+            ),
+        );
+        i += 1;
+    }
+    let pc = getRestartPC(dest);
+    setNextPC(dest, pc);
+    Arch_postModifyRegisters(dest);
+    if resumeTarget != 0u64 {
+        restart(dest);
+    }
+    if dest == node_state!(ksCurThread) {
+        rescheduleRequired();
+    }
+    0u64
+}
+
+//  ???notification
+pub unsafe extern "C" fn invokeTCB_NotificationControl(
+    tcb: *mut tcb_t,
+    ntfnPtr: *mut notification_t,
+) -> u64 {
+    if ntfnPtr as u64 != 0u64 {
+        bindNotification(tcb, ntfnPtr);
+    } else {
+        unbindNotification(tcb);
+    }
+    0u64
+}
 }
 
 #[macro_export]
