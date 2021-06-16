@@ -943,6 +943,64 @@ pub unsafe extern "C" fn invokeTCB_NotificationControl(
     }
     0u64
 }
+pub unsafe extern "C" fn setMRs_syscall_error(
+    thread: *mut tcb_t,
+    receiveIPCBuffer: *mut u64,
+) -> u64 {
+    if current_syscall_error.type_ == seL4_Error::seL4_InvalidArgument as u64 {
+        return setMR(
+            thread,
+            receiveIPCBuffer,
+            0,
+            current_syscall_error.invalidArgumentNumber,
+        ) as u64;
+    } else if current_syscall_error.type_ == seL4_Error::seL4_InvalidCapability as u64 {
+        return setMR(
+            thread,
+            receiveIPCBuffer,
+            0,
+            current_syscall_error.invalidCapNumber,
+        ) as u64;
+    } else if current_syscall_error.type_ == seL4_Error::seL4_IllegalOperation as u64 {
+        return 0u64;
+    } else if current_syscall_error.type_ == seL4_Error::seL4_RangeError as u64 {
+        setMR(
+            thread,
+            receiveIPCBuffer,
+            0,
+            current_syscall_error.rangeErrorMin,
+        );
+        return setMR(
+            thread,
+            receiveIPCBuffer,
+            1,
+            current_syscall_error.rangeErrorMax,
+        ) as u64;
+    } else if current_syscall_error.type_ == seL4_Error::seL4_AlignmentError as u64 {
+        return 0u64;
+    } else if current_syscall_error.type_ == seL4_Error::seL4_FailedLookup as u64 {
+        setMR(
+            thread,
+            receiveIPCBuffer,
+            0,
+            (current_syscall_error.failedLookupWasSource != 0u64) as u64,
+        );
+        return setMRs_lookup_failure(thread, receiveIPCBuffer, current_lookup_fault, 1) as u64;
+    } else if current_syscall_error.type_ == seL4_Error::seL4_TruncatedMessage as u64
+        || current_syscall_error.type_ == seL4_Error::seL4_DeleteFirst as u64
+        || current_syscall_error.type_ == seL4_Error::seL4_RevokeFirst as u64
+    {
+        return 0u64;
+    } else if current_syscall_error.type_ == seL4_Error::seL4_NotEnoughMemory as u64 {
+        return setMR(
+            thread,
+            receiveIPCBuffer,
+            0,
+            current_syscall_error.memoryLeft,
+        ) as u64;
+    }
+    panic!("Invalid syscall error");
+}
 }
 
 #[macro_export]
