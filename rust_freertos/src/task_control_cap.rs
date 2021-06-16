@@ -705,6 +705,78 @@ impl TaskHandle {
     pub fn set_base_priority(&self, new_val: UBaseType) {
         get_tcb_from_handle_mut!(self).set_base_priority(new_val)
     }
+
+pub unsafe extern "C" fn invokeTCB_ThreadControl(
+    target: *mut tcb_t,
+    slot: *mut cte_t,
+    faultep: u64,
+    mcp: prio_t,
+    priority: prio_t,
+    cRoot_newCap: cap_t,
+    cRoot_srcSlot: *mut cte_t,
+    vRoot_newCap: cap_t,
+    vRoot_srcSlot: *mut cte_t,
+    bufferAddr: u64,
+    bufferCap: cap_t,
+    bufferSrcSlot: *mut cte_t,
+    updateFlags: u64,
+) -> u64 {
+    let tCap = cap_thread_cap_new(target as u64);
+    if updateFlags & thread_control_flag::thread_control_update_space as u64 != 0u64 {
+        (*target).tcbFaultHandler = faultep;
+    }
+    if updateFlags & thread_control_flag::thread_control_update_mcp as u64 != 0u64 {
+        setMCPriority(target, mcp);
+    }
+    if updateFlags & thread_control_flag::thread_control_update_priority as u64 != 0u64 {
+        setPriority(target, priority);
+    }
+    if updateFlags & thread_control_flag::thread_control_update_space as u64 != 0u64 {
+        let rootSlot = tcb_ptr_cte_ptr(target, tcb_cnode_index::tcbCTable as u64);
+        let e = cteDelete(rootSlot, 1u64);
+        if e != 0u64 {
+            return e;
+        }
+        if sameObjectAs(cRoot_newCap, (*cRoot_srcSlot).cap) != 0u64
+            && sameObjectAs(tCap, (*slot).cap) != 0u64
+        {
+            cteInsert(cRoot_newCap, cRoot_srcSlot, rootSlot);
+        }
+    }
+    if updateFlags & thread_control_flag::thread_control_update_space as u64 != 0u64 {
+        let rootSlot = tcb_ptr_cte_ptr(target, tcb_cnode_index::tcbVTable as u64);
+        let e = cteDelete(rootSlot, 1u64);
+        if e != 0u64 {
+            return e;
+        }
+        if sameObjectAs(vRoot_newCap, (*vRoot_srcSlot).cap) != 0u64
+            && sameObjectAs(tCap, (*slot).cap) != 0u64
+        {
+            cteInsert(vRoot_newCap, vRoot_srcSlot, rootSlot);
+        }
+    }
+    if updateFlags & thread_control_flag::thread_control_update_ipc_buffer as u64 != 0u64 {
+        let bufferSlot = tcb_ptr_cte_ptr(target, tcb_cnode_index::tcbBuffer as u64);
+        let e = cteDelete(bufferSlot, 1u64);
+        if e != 0u64 {
+            return e;
+        }
+        (*target).tcbIPCBuffer = bufferAddr;
+        Arch_setTCBIPCBuffer(target, bufferAddr);
+        if bufferSrcSlot as u64 != 0u64
+            && sameObjectAs(bufferCap, (*bufferSrcSlot).cap) != 0u64
+            && sameObjectAs(tCap, (*slot).cap) != 0u64
+        {
+            cteInsert(bufferCap, bufferSrcSlot, bufferSlot);
+        }
+        if target == node_state!(ksCurThread) {
+            rescheduleRequired();
+        }
+    }
+    0u64
+}
+
+
 }
 
 #[macro_export]

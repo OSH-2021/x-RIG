@@ -1,6 +1,7 @@
 ## 0616
 - [-] stream buffer static
 - [ ] stream buffer dynamic?
+- [ ] include registerset
 
 ## 0509
 - [ ] 递归信号量

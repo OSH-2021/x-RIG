@@ -234,6 +234,7 @@ pub unsafe extern "C" fn tcbSchedDequeue(tcb: *mut tcb_t) {
     }
 }
 
+//  todo task_control_cap
 #[no_mangle]
 pub unsafe extern "C" fn tcbEPAppend(tcb: *mut tcb_t, mut queue: tcb_queue_t) -> tcb_queue_t {
     if queue.head as u64 == 0u64 {
@@ -247,6 +248,7 @@ pub unsafe extern "C" fn tcbEPAppend(tcb: *mut tcb_t, mut queue: tcb_queue_t) ->
     queue
 }
 
+//  todo task_control_cap
 #[no_mangle]
 pub unsafe extern "C" fn tcbEPDequeue(tcb: *mut tcb_t, mut queue: tcb_queue_t) -> tcb_queue_t {
     if (*tcb).tcbEPPrev as u64 != 0u64 {
@@ -262,16 +264,19 @@ pub unsafe extern "C" fn tcbEPDequeue(tcb: *mut tcb_t, mut queue: tcb_queue_t) -
     queue
 }
 
+//  todo task_ipc
 #[no_mangle]
 pub unsafe extern "C" fn getExtraCPtr(bufferPtr: *mut u64, i: u64) -> u64 {
     *bufferPtr.offset((seL4_MsgMaxLength + 2 + i) as isize)
 }
 
+//  todo task_ipc
 #[no_mangle]
 pub unsafe extern "C" fn setExtraBadge(bufferPtr: *mut u64, badge: u64, i: u64) {
     *bufferPtr.offset((seL4_MsgMaxLength + 2 + i) as isize) = badge;
 }
 
+//  todo task_ipc
 #[no_mangle]
 pub unsafe extern "C" fn setupCallerCap(sender: *mut tcb_t, receiver: *mut tcb_t) {
     setThreadState(sender, _thread_state::ThreadState_BlockedOnReply as u64);
@@ -284,12 +289,14 @@ pub unsafe extern "C" fn setupCallerCap(sender: *mut tcb_t, receiver: *mut tcb_t
     );
 }
 
+//  todo task_ipc
 #[no_mangle]
 pub unsafe extern "C" fn deleteCallerCap(receiver: *mut tcb_t) {
     let callerSlot = tcb_ptr_cte_ptr(receiver, tcb_cnode_index::tcbCaller as u64);
     cteDeleteOne(callerSlot);
 }
 
+//  todo task_ipc
 #[no_mangle]
 pub unsafe extern "C" fn lookupExtraCaps(
     thread: *mut tcb_t,
@@ -318,6 +325,7 @@ pub unsafe extern "C" fn lookupExtraCaps(
     0u64
 }
 
+//  todo task_ipc
 #[no_mangle]
 pub unsafe extern "C" fn copyMRs(
     sender: *mut tcb_t,
