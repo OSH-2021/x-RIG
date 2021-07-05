@@ -6,12 +6,36 @@ use crate::port::*;
 use crate::projdefs::FreeRtosError;
 use crate::task_global;
 use crate::*;
+use crate::regs::*;
 use std::ops::FnOnce;
 use std::mem;
 use std::sync::{Arc, RwLock, Weak};
 use crate::seL4::object::arch_structures::*;
 use crate::seL4::object::cnode::*;
 use crate::type_eq::*;
+
+pub type tcb_t = task_control_block;
+pub const L2_BITMAP_SIZE: usize = (256 + (1 << 6) - 1) / (1 << 6);
+extern "C" {
+    // TODO change to current TCB in task_global
+    static mut ksCurThread: *mut tcb_t;     //  ->  CURRENT_TCB
+    static mut ksReadyQueues: [tcb_queue_t; 256];   //  -> READY_TASK_LISTS
+    static mut ksReadyQueuesL1Bitmap: [u64; 1];
+    static mut ksReadyQueuesL2Bitmap: [[u64; L2_BITMAP_SIZE]; 1];
+    static mut current_extra_caps: extra_caps_t;
+    static mut current_syscall_error: syscall_error_t;
+    static mut current_fault: seL4_Fault_t;
+    static mut current_lookup_fault: lookup_fault_t;
+    pub fn getRestartPC(thread: *mut tcb_t) -> u64;
+    pub fn setNextPC(thread: *mut tcb_t, v: u64);
+    pub fn lookupIPCBuffer(isReceiver: bool, thread: *mut tcb_t) -> *mut u64;
+    pub fn sanitiseRegister(reg_id: usize, v: u64, archInfo: bool) -> u64;
+    pub fn Arch_setTCBIPCBuffer(thread: *mut tcb_t, bufferAddr: u64);
+    pub fn Arch_postModifyRegisters(tptr: *mut tcb_t);
+    pub fn Arch_performTransfer(arch: u64, tcb_src: *mut tcb_t, dest: *mut tcb_t) -> u64;
+    // fn kprintf(format: *const u8, ...) -> u64;
+}
+
 
 /* Task states returned by eTaskGetState. */
 #[derive(Copy, Clone, Debug)]
@@ -80,7 +104,7 @@ pub struct task_control_block {
     delay_aborted: bool,
 
     // #[cfg(feature = "configUSE_CAPS")]
-    // arch : ???,  //  暂时先不考虑?
+    // arch : ???,  //  暂时先不考虑? arch里面有很多register,单独拿出来了
     task_state : TaskState, // TODO: add ThreadStateType | translated to task (from thread)
     //  TODO
     // bound_notification : Option<Notification> // notifications are not necessarily bound to tcb freertos已经有notification了我们还要写吗？
@@ -91,8 +115,32 @@ pub struct task_control_block {
     // time_slice : UBaseType, // freertos应该也有内置的时间片吧 在哪？
     fault_handler : UBaseType, // used only once in qwq
     ipc_buffer : UBaseType, // 总觉得这个和stream buffer很像
-
+    registers : [word_t; n_contextRegisters]
 }
+
+pub unsafe extern "C" fn suspend(target: *mut tcb_t) {
+    cancelIPC(target);
+    setThreadState(target, TaskState::InActive as u64);
+    tcbSchedDequeue(target);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn restart(target: *mut tcb_t) {
+    if isBlocked(target) != 0 {
+        cancelIPC(target);
+        setupReplyMaster(target);
+        setThreadState(target, _thread_state::ThreadState_Restart as u64);
+        tcbSchedEnqueue(target);
+        possibleSwitchTo(target);
+    }
+}
+// TODO
+pub unsafe extern "C" fn setThreadState(tptr: *mut tcb_t, ts : TaskState) {
+    let tcbState = &mut (*tptr).task_state;
+    thread_state_ptr_set_tsType(tcbState, ts); // sure to use sel4's function directly?
+    scheduleTCB(tptr);
+}
+
 
 pub type TCB = task_control_block;
 pub type Task = task_control_block;
@@ -134,6 +182,7 @@ impl task_control_block {
             fault_handler: 0,
             max_ctrl_prio: configMAX_PRIORITIES!(),
             ipc_buffer: 0,
+            registers : [0; n_contextRegisters]
         }
     }
 
@@ -580,7 +629,7 @@ impl TaskHandle {
 
     /// # Description:
     ///     insert task to the head of the ready list
-    /// * Implemented by: 
+    /// * Implemented by:
     ///     Lslightly
     /// # Arguments:
     ///   self  the task self
@@ -663,7 +712,7 @@ impl TaskHandle {
 
     /// # Description:
     ///     append task to the end of endpoint list
-    /// * Implemented by: 
+    /// * Implemented by:
     ///     Lslightly
     /// # Arguments:
     ///     self
@@ -679,12 +728,12 @@ impl TaskHandle {
 
     /// # Description:
     ///    delete task from endpoint list
-    /// * Implemented by: 
+    /// * Implemented by:
     ///    Lslightly
     /// # Arguments:
-    ///    
+    ///
     /// # Return:
-    ///    
+    ///
     pub fn delete_task_from_endpoint_list(&self, index_queue: u64) -> Result<(), FreeRtosError> {
         let unwrapped_tcb = get_tcb_from_handle!(self);
         list::list_remove(Arc::clone(&unwrapped_tcb.state_list_item));
@@ -812,74 +861,76 @@ impl TaskHandle {
         }
         0u64
     }
-
-    pub unsafe extern "C" fn invokeTCB_CopyRegisters(
-        dest: &self,
+    // original name invokeTCB_CopyRegisters (add From to clarify)
+    pub unsafe extern "C" fn invokeTCB_CopyRegistersFrom(
+        &mut self, // original name dest
         src: &Self,
-        suspendSource: bool_t,
-        resumeTarget: bool_t,
-        transferFrame: bool_t,
-        transferInteger: bool_t,
+        suspendSource: bool,
+        resumeTarget: bool,
+        transferFrame: bool,
+        transferInteger: bool,
         transferArch: u64,
     ) -> u64 {
-        let dest_tcb: &mut TCB = get_tcb_from_handle_mut!!(dest);
+        let dest_tcb: &mut TCB = get_tcb_from_handle_mut!(self);
         let src_tcb: &mut TCB = get_tcb_from_handle_mut!(src);
         let dest_ptr = dest_tcb as *mut TCB;
         let src_ptr = src_tcb as *mut TCB;
-        if suspendSource != 0u64 {
-            suspend(tcb_src);
+        if suspendSource != false {
+            suspend(dest_ptr);
         }
-        if resumeTarget != 0u64 {
-            restart(dest);
+        if resumeTarget != false {
+            restart(dest_ptr);
         }
-        if transferFrame != 0u64 {
+        if transferFrame != false {
             let mut i: usize = 0;
             while i < n_frameRegisters {
-                let v = getRegister(tcb_src, frameRegisters[i]);
-                setRegister(dest, frameRegisters[i], v);
+                let v = getRegister(src_ptr, frameRegisters[i]);
+                setRegister(dest_ptr, frameRegisters[i], v);
                 i += 1;
             }
-            let pc = getRestartPC(dest);
-            setNextPC(dest, pc);
+            let pc = getRestartPC(dest_ptr);
+            setNextPC(dest_ptr, pc);
         }
-        if transferInteger != 0u64 {
+        if transferInteger != false {
             let mut i: usize = 0;
             while i < n_gpRegisters {
-                let v = getRegister(tcb_src, gpRegisters[i]);
-                setRegister(dest, gpRegisters[i], v);
+                let v = getRegister(src_ptr, gpRegisters[i]);
+                setRegister(dest_ptr, gpRegisters[i], v);
                 i += 1;
             }
         }
-        Arch_postModifyRegisters(dest);
-        if dest == node_state!(ksCurThread) {
+        Arch_postModifyRegisters(dest_ptr);
+        if dest_ptr == node_state!(ksCurThread) {
             rescheduleRequired();
         }
-        Arch_performTransfer(transferArch, tcb_src, dest)
+        Arch_performTransfer(transferArch, src_ptr, dest_ptr)
     }
 
     pub unsafe extern "C" fn invokeTCB_ReadRegisters(
-        tcb_src: *mut tcb_t,
-        suspendSource: bool_t,
+        &mut self,
+        suspendSource: bool,
         n: u64,
         arch: u64,
-        call: bool_t,
+        call: bool,
     ) -> u64 {
+        let src_tcb: &mut TCB = get_tcb_from_handle_mut!(self);
+        let src_ptr = src_tcb as *mut TCB;
         let thread = node_state!(ksCurThread);
-        if suspendSource != 0u64 {
-            suspend(tcb_src);
+        if suspendSource != false { // 0u64 as false
+            suspend(src_tcb);
         }
-        let e = Arch_performTransfer(arch, tcb_src, node_state!(ksCurThread));
+        let e = Arch_performTransfer(arch, src_tcb, node_state!(ksCurThread));
         if e != 0u64 {
             return e;
         }
-        if call != 0u64 {
-            let ipcBuffer = lookupIPCBuffer(1u64, thread);
+        if call != false {
+            let ipcBuffer = lookupIPCBuffer(true, thread);
             let mut i: usize = 0;
             while i < n as usize && i < n_frameRegisters && i < n_msgRegisters {
                 setRegister(
                     thread,
                     msgRegisters[i],
-                    getRegister(tcb_src, frameRegisters[i]),
+                    getRegister(src_tcb, frameRegisters[i]),
                 );
                 i += 1;
             }
@@ -898,14 +949,14 @@ impl TaskHandle {
                 setRegister(
                     thread,
                     msgRegisters[i + n_frameRegisters],
-                    getRegister(tcb_src, gpRegisters[i]),
+                    getRegister(src_tcb, gpRegisters[i]),
                 );
                 i += 1;
             }
             if ipcBuffer as u64 != 0u64 && i < n_gpRegisters && i + n_frameRegisters < n as usize {
                 while i < n_gpRegisters && i + n_frameRegisters < n as usize {
                     *ipcBuffer.offset((i + n_frameRegisters + 1) as isize) =
-                        getRegister(tcb_src, gpRegisters[i]);
+                        getRegister(src_tcb, gpRegisters[i]);
                     i += 1;
                 }
             }
@@ -915,18 +966,21 @@ impl TaskHandle {
                 wordFromMessageInfo(seL4_MessageInfo_new(0, 0, 0, (i + j) as u64)),
             );
         }
-        setThreadState(thread, _thread_state::ThreadState_Running as u64);
+        setThreadState(thread, TaskState::running);
         0u64
     }
 
     pub unsafe extern "C" fn invokeTCB_WriteRegisters(
-        dest: *mut tcb_t,
-        resumeTarget: bool_t,
+        &mut self,
+        resumeTarget: bool,
         mut n: u64,
         arch: u64,
-        buffer: *mut u64,
+        buffer: *mut u64
     ) -> u64 {
-        let e = Arch_performTransfer(arch, node_state!(ksCurThread), dest);
+        let dest_tcb: &mut TCB = get_tcb_from_handle_mut!(self);
+        let dest_ptr = dest_tcb as *mut TCB;
+
+        let e = Arch_performTransfer(arch, node_state!(ksCurThread), dest_ptr);
         if e != 0u64 {
             return e;
         }
@@ -937,7 +991,7 @@ impl TaskHandle {
         let mut i: usize = 0;
         while i < n_frameRegisters && i < n as usize {
             setRegister(
-                dest,
+                dest_ptr,
                 frameRegisters[i],
                 sanitiseRegister(
                     frameRegisters[i],
@@ -950,7 +1004,7 @@ impl TaskHandle {
         i = 0;
         while i < n_gpRegisters && i + n_frameRegisters < n as usize {
             setRegister(
-                dest,
+                dest_ptr,
                 gpRegisters[i],
                 sanitiseRegister(
                     gpRegisters[i],
@@ -960,22 +1014,22 @@ impl TaskHandle {
             );
             i += 1;
         }
-        let pc = getRestartPC(dest);
-        setNextPC(dest, pc);
-        Arch_postModifyRegisters(dest);
-        if resumeTarget != 0u64 {
-            restart(dest);
+        let pc = getRestartPC(dest_ptr);
+        setNextPC(dest_ptr, pc);
+        Arch_postModifyRegisters(dest_ptr);
+        if resumeTarget != false {
+            restart(dest_ptr);
         }
-        if dest == node_state!(ksCurThread) {
+        if dest_ptr == node_state!(ksCurThread) {
             rescheduleRequired();
         }
         0u64
     }
 
-    //  ???notification
+    //  ???notification TODO
     pub unsafe extern "C" fn invokeTCB_NotificationControl(
-        tcb: *mut tcb_t,
-        ntfnPtr: *mut notification_t,
+        &mut self,// tcb: *mut tcb_t,
+        ntfnPtr: *mut notification_t
     ) -> u64 {
         if ntfnPtr as u64 != 0u64 {
             bindNotification(tcb, ntfnPtr);
