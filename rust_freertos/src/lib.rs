@@ -47,6 +47,8 @@ pub mod task_control;
 pub mod type_eq;
 // #[cfg(feature = "configUSE_STREAMBUFFER")]
 // pub mod stream_buffer;
+#[cfg(feature = "configUSE_CAPS")]
+pub mod regs;
 #[cfg(test)]
 mod tests {
     use super::*;
