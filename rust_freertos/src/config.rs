@@ -45,6 +45,13 @@ macro_rules! configMAX_PRIORITIES {
 }
 
 #[macro_export]
+macro_rules! configMAX_ENDPOINTS {
+    () => {
+        10
+    };
+}
+
+#[macro_export]
 macro_rules! configTIMER_TASK_PRIORITY {
     () => {
         configMAX_PRIORITIES!() - 1

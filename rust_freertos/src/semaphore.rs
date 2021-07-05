@@ -1,7 +1,10 @@
 use crate::port::*;
 use crate::queue::*;
 use crate::queue_h::*;
+#[cfg(not(feature = "configUSE_CAPS"))]
 use crate::task_control::*;
+#[cfg(feature = "configUSE_CAPS")]
+use crate::task_control_cap::*;
 use crate::*;
 use std::cell::UnsafeCell;
 
@@ -39,8 +42,8 @@ impl Semaphore {
         feature = "configUSE_MUTEXES",
         feature = "INCLUDE_xSemaphoreGetMutexHolder"
     ))]
-    pub fn get_mutex_holder(&self) -> Option<task_control::TaskHandle> {
-        let mut mutex_holder: Option<task_control::TaskHandle>;
+    pub fn get_mutex_holder(&self) -> Option<TaskHandle> {
+        let mut mutex_holder: Option<TaskHandle>;
         taskENTER_CRITICAL!();
         {
             unsafe {

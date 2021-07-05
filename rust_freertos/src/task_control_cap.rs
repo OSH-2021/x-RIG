@@ -1,12 +1,17 @@
 use crate::kernel::*;
+use crate::ffi::*;
 use crate::list::*;
+use crate::port;
 use crate::port::*;
 use crate::projdefs::FreeRtosError;
-use crate::task_global::*;
+use crate::task_global;
 use crate::*;
 use std::ops::FnOnce;
 use std::mem;
 use std::sync::{Arc, RwLock, Weak};
+use crate::seL4::object::arch_structures::*;
+use crate::seL4::object::cnode::*;
+use crate::type_eq::*;
 
 /* Task states returned by eTaskGetState. */
 #[derive(Copy, Clone, Debug)]
@@ -24,6 +29,13 @@ pub enum TaskState {
     BlockedOnReply,                     //  seL4
     BlockedOnNotificn,                  //  seL4
     Idle,                               //  seL4
+}
+
+pub enum thread_control_flag {
+    thread_control_update_priority = 0x1,
+    thread_control_update_ipc_buffer = 0x2,
+    thread_control_update_space = 0x4,
+    thread_control_update_mcp = 0x8,
 }
 
 pub enum updated_top_priority {
@@ -70,28 +82,16 @@ pub struct task_control_block {
     // #[cfg(feature = "configUSE_CAPS")]
     // arch : ???,  //  暂时先不考虑?
     task_state : TaskState, // TODO: add ThreadStateType | translated to task (from thread)
+    //  TODO
     // bound_notification : Option<Notification> // notifications are not necessarily bound to tcb freertos已经有notification了我们还要写吗？
-    task_fault : FaultType,
-    lookup_failure : LookupFault,
-    domain : Domain,
+    // task_fault : FaultType,
+    // lookup_failure : LookupFault,
+    // domain : Domain,
     max_ctrl_prio : UBaseType, // same as freertos prio
-    time_slice : UBaseType, // freertos应该也有内置的时间片吧 在哪？
+    // time_slice : UBaseType, // freertos应该也有内置的时间片吧 在哪？
     fault_handler : UBaseType, // used only once in qwq
     ipc_buffer : UBaseType, // 总觉得这个和stream buffer很像
 
-    //  这里直接使用queue即可
-    // #[cfg(feature = "configUSE_CAPS")]
-    // schedule_next : Box<task_control_block>,
-    // #[cfg(feature = "configUSE_CAPS")]
-    // schedule_prev : Box<task_control_block>,
-    // #[cfg(feature = "configUSE_CAPS")]
-    // endpoint_next : Box<task_control_block>,
-    // #[cfg(feature = "configUSE_CAPS")]
-    // endpoint_prev : Box<task_control_block>,
-    // #[cfg(feature = "configUSE_CAPS")]
-    // tcb_debug_next : Box<task_control_block>,
-    // #[cfg(feature = "configUSE_CAPS")]
-    // tcb_debug_prev : Box<task_control_block>,
 }
 
 pub type TCB = task_control_block;
@@ -126,6 +126,14 @@ impl task_control_block {
             notify_state: 0,
             #[cfg(feature = "INCLUDE_xTaskAbortDelay")]
             delay_aborted: false,
+
+            // TODO
+            task_state: TaskState::Idle,
+            // lookup_failure: 0,
+            // domain: 0,
+            fault_handler: 0,
+            max_ctrl_prio: configMAX_PRIORITIES!(),
+            ipc_buffer: 0,
         }
     }
 
@@ -389,6 +397,19 @@ impl task_control_block {
     pub fn set_base_priority(&mut self, new_val: UBaseType) {
         self.base_priority = new_val
     }
+
+    //  TODO
+    pub fn set_fault_handler(&mut self, faulteq: u64) {
+        self.fault_handler = faulteq;
+    }
+
+    pub fn set_MCPriority(&mut self, mcp: prio_t) {
+        self.max_ctrl_prio = mcp;
+    }
+
+    pub fn set_ipc_buffer(&mut self, bufferAddr: u64) {
+        self.ipc_buffer = bufferAddr;
+    }
 }
 
 impl PartialEq for TCB {
@@ -550,7 +571,7 @@ impl TaskHandle {
         // TODO: This line is WRONG! (just for test)
         // set_list_item_container!(unwrapped_tcb.state_list_item, list::ListName::READY_TASK_LISTS_1);
         list::list_insert_end(
-            &READY_TASK_LISTS[priority as usize],
+            &task_global::READY_TASK_LISTS[priority as usize],
             Arc::clone(&unwrapped_tcb.state_list_item),
         );
         tracePOST_MOVED_TASK_TO_READY_STATE!(&unwrapped_tcb);
@@ -566,9 +587,20 @@ impl TaskHandle {
     /// # Return:
     ///   Ok(())
     ///   Err(FreeRtosError)
-    #[cfg(feature = "configUSE_CAPS")]
     pub fn insert_task_to_ready_list(&self) -> Result<(), FreeRtosError> {
-        //  TCB
+        let unwrapped_tcb = get_tcb_from_handle!(self);
+        let priority = self.get_priority();
+
+        traceMOVED_TASK_TO_READY_STATE!(&unwrapped_tcb);
+        record_ready_priority!(priority);
+
+        //  ???really insert to the head of list???
+        list::list_insert(
+            &task_global::READY_TASK_LISTS[priority as usize],
+            Arc::clone(&unwrapped_tcb.state_list_item),
+        );
+        tracePOST_MOVED_TASK_TO_READY_STATE!(&unwrapped_tcb);
+        Ok(())
     }
 
     /// Called after a new task has been created and initialised to place the task
@@ -638,9 +670,11 @@ impl TaskHandle {
     /// # Return:
     ///     Ok(tcb_queue?)
     ///     Err(FreeRtosError)
-    #[cfg(feature = "configUSE_CAPS")]
-    pub fn append_task_to_endpoint_list(&self) -> Result<Queue, FreeRtosError> {
-        // TCB
+    /// TODO return
+    pub fn append_task_to_endpoint_list(&self, index_queue: u64) -> Result<(), FreeRtosError> {
+        let unwrapped_tcb = get_tcb_from_handle!(self);
+        list::list_insert_end(&task_global::ENDPOINT_LIST[index_queue as usize], Arc::clone(&unwrapped_tcb.state_list_item));
+        Ok(())
     }
 
     /// # Description:
@@ -651,9 +685,10 @@ impl TaskHandle {
     ///    
     /// # Return:
     ///    
-    #[cfg(feature = "configUSE_CAPS")]
-    pub fn delete_task_from_endpoint_list(&self) -> Result<, FreeRtosError> {
-        // TCB
+    pub fn delete_task_from_endpoint_list(&self, index_queue: u64) -> Result<(), FreeRtosError> {
+        let unwrapped_tcb = get_tcb_from_handle!(self);
+        list::list_remove(Arc::clone(&unwrapped_tcb.state_list_item));
+        Ok(())
     }
 
     pub fn get_event_list_item(&self) -> ItemLink {
@@ -706,301 +741,307 @@ impl TaskHandle {
         get_tcb_from_handle_mut!(self).set_base_priority(new_val)
     }
 
-pub unsafe extern "C" fn invokeTCB_ThreadControl(
-    target: *mut tcb_t,
-    slot: *mut cte_t,
-    faultep: u64,
-    mcp: prio_t,
-    priority: prio_t,
-    cRoot_newCap: cap_t,
-    cRoot_srcSlot: *mut cte_t,
-    vRoot_newCap: cap_t,
-    vRoot_srcSlot: *mut cte_t,
-    bufferAddr: u64,
-    bufferCap: cap_t,
-    bufferSrcSlot: *mut cte_t,
-    updateFlags: u64,
-) -> u64 {
-    let tCap = cap_thread_cap_new(target as u64);
-    if updateFlags & thread_control_flag::thread_control_update_space as u64 != 0u64 {
-        (*target).tcbFaultHandler = faultep;
+    pub fn invokeTCB_ThreadControl(
+        &self,
+        slot: *mut cte_t,
+        faultep: u64,
+        mcp: prio_t,
+        priority: prio_t,
+        cRoot_newCap: cap_t,
+        cRoot_srcSlot: *mut cte_t,
+        vRoot_newCap: cap_t,
+        vRoot_srcSlot: *mut cte_t,
+        bufferAddr: u64,
+        bufferCap: cap_t,
+        bufferSrcSlot: *mut cte_t,
+        updateFlags: u64,
+    ) -> u64 {
+        let target_tcb: &mut TCB = get_tcb_from_handle_mut!(self);
+        let target_ptr = target_tcb as *mut TCB;    //  raw pointer, TODO
+        let tCap = cap_thread_cap_new(target_ptr as u64);
+        if updateFlags & thread_control_flag::thread_control_update_space as u64 != 0u64 {
+            target_tcb.set_fault_handler(faultep);
+        }
+        if updateFlags & thread_control_flag::thread_control_update_mcp as u64 != 0u64 {
+            target_tcb.set_MCPriority(mcp);
+        }
+        if updateFlags & thread_control_flag::thread_control_update_priority as u64 != 0u64 {
+            target_tcb.set_priority(priority);
+        }
+        if updateFlags & thread_control_flag::thread_control_update_space as u64 != 0u64 {
+            let rootSlot = tcb_ptr_cte_ptr(target_ptr, tcb_cnode_index::tcbCTable as u64);
+            let e = cteDelete(rootSlot, 1u64);
+            if e != 0u64 {
+                return e;
+            }
+            if sameObjectAs(cRoot_newCap, (*cRoot_srcSlot).cap) != 0u64
+                && sameObjectAs(tCap, (*slot).cap) != 0u64
+            {
+                cteInsert(cRoot_newCap, cRoot_srcSlot, rootSlot);
+            }
+        }
+        if updateFlags & thread_control_flag::thread_control_update_space as u64 != 0u64 {
+            let rootSlot = tcb_ptr_cte_ptr(target_ptr, tcb_cnode_index::tcbVTable as u64);
+            let e = cteDelete(rootSlot, 1u64);
+            if e != 0u64 {
+                return e;
+            }
+            if sameObjectAs(vRoot_newCap, (*vRoot_srcSlot).cap) != 0u64
+                && sameObjectAs(tCap, (*slot).cap) != 0u64
+            {
+                cteInsert(vRoot_newCap, vRoot_srcSlot, rootSlot);
+            }
+        }
+        if updateFlags & thread_control_flag::thread_control_update_ipc_buffer as u64 != 0u64 {
+            let bufferSlot = tcb_ptr_cte_ptr(target_ptr, tcb_cnode_index::tcbBuffer as u64);
+            let e = cteDelete(bufferSlot, 1u64);
+            if e != 0u64 {
+                return e;
+            }
+            target_tcb.set_ipc_buffer(bufferAddr);
+            Arch_setTCBIPCBuffer(target_ptr, bufferAddr);
+            if bufferSrcSlot as u64 != 0u64
+                && sameObjectAs(bufferCap, (*bufferSrcSlot).cap) != 0u64
+                && sameObjectAs(tCap, (*slot).cap) != 0u64
+            {
+                cteInsert(bufferCap, bufferSrcSlot, bufferSlot);
+            }
+            if target == get_current_task_handle!() {
+                rescheduleRequired();
+            }
+        }
+        0u64
     }
-    if updateFlags & thread_control_flag::thread_control_update_mcp as u64 != 0u64 {
-        setMCPriority(target, mcp);
-    }
-    if updateFlags & thread_control_flag::thread_control_update_priority as u64 != 0u64 {
-        setPriority(target, priority);
-    }
-    if updateFlags & thread_control_flag::thread_control_update_space as u64 != 0u64 {
-        let rootSlot = tcb_ptr_cte_ptr(target, tcb_cnode_index::tcbCTable as u64);
-        let e = cteDelete(rootSlot, 1u64);
-        if e != 0u64 {
-            return e;
+
+    pub unsafe extern "C" fn invokeTCB_CopyRegisters(
+        dest: &self,
+        src: &Self,
+        suspendSource: bool_t,
+        resumeTarget: bool_t,
+        transferFrame: bool_t,
+        transferInteger: bool_t,
+        transferArch: u64,
+    ) -> u64 {
+        let dest_tcb: &mut TCB = get_tcb_from_handle_mut!!(dest);
+        let src_tcb: &mut TCB = get_tcb_from_handle_mut!(src);
+        let dest_ptr = dest_tcb as *mut TCB;
+        let src_ptr = src_tcb as *mut TCB;
+        if suspendSource != 0u64 {
+            suspend(tcb_src);
         }
-        if sameObjectAs(cRoot_newCap, (*cRoot_srcSlot).cap) != 0u64
-            && sameObjectAs(tCap, (*slot).cap) != 0u64
-        {
-            cteInsert(cRoot_newCap, cRoot_srcSlot, rootSlot);
+        if resumeTarget != 0u64 {
+            restart(dest);
         }
-    }
-    if updateFlags & thread_control_flag::thread_control_update_space as u64 != 0u64 {
-        let rootSlot = tcb_ptr_cte_ptr(target, tcb_cnode_index::tcbVTable as u64);
-        let e = cteDelete(rootSlot, 1u64);
-        if e != 0u64 {
-            return e;
+        if transferFrame != 0u64 {
+            let mut i: usize = 0;
+            while i < n_frameRegisters {
+                let v = getRegister(tcb_src, frameRegisters[i]);
+                setRegister(dest, frameRegisters[i], v);
+                i += 1;
+            }
+            let pc = getRestartPC(dest);
+            setNextPC(dest, pc);
         }
-        if sameObjectAs(vRoot_newCap, (*vRoot_srcSlot).cap) != 0u64
-            && sameObjectAs(tCap, (*slot).cap) != 0u64
-        {
-            cteInsert(vRoot_newCap, vRoot_srcSlot, rootSlot);
+        if transferInteger != 0u64 {
+            let mut i: usize = 0;
+            while i < n_gpRegisters {
+                let v = getRegister(tcb_src, gpRegisters[i]);
+                setRegister(dest, gpRegisters[i], v);
+                i += 1;
+            }
         }
-    }
-    if updateFlags & thread_control_flag::thread_control_update_ipc_buffer as u64 != 0u64 {
-        let bufferSlot = tcb_ptr_cte_ptr(target, tcb_cnode_index::tcbBuffer as u64);
-        let e = cteDelete(bufferSlot, 1u64);
-        if e != 0u64 {
-            return e;
-        }
-        (*target).tcbIPCBuffer = bufferAddr;
-        Arch_setTCBIPCBuffer(target, bufferAddr);
-        if bufferSrcSlot as u64 != 0u64
-            && sameObjectAs(bufferCap, (*bufferSrcSlot).cap) != 0u64
-            && sameObjectAs(tCap, (*slot).cap) != 0u64
-        {
-            cteInsert(bufferCap, bufferSrcSlot, bufferSlot);
-        }
-        if target == node_state!(ksCurThread) {
+        Arch_postModifyRegisters(dest);
+        if dest == node_state!(ksCurThread) {
             rescheduleRequired();
         }
+        Arch_performTransfer(transferArch, tcb_src, dest)
     }
-    0u64
-}
 
-pub unsafe extern "C" fn invokeTCB_CopyRegisters(
-    dest: *mut tcb_t,
-    tcb_src: *mut tcb_t,
-    suspendSource: bool_t,
-    resumeTarget: bool_t,
-    transferFrame: bool_t,
-    transferInteger: bool_t,
-    transferArch: u64,
-) -> u64 {
-    if suspendSource != 0u64 {
-        suspend(tcb_src);
+    pub unsafe extern "C" fn invokeTCB_ReadRegisters(
+        tcb_src: *mut tcb_t,
+        suspendSource: bool_t,
+        n: u64,
+        arch: u64,
+        call: bool_t,
+    ) -> u64 {
+        let thread = node_state!(ksCurThread);
+        if suspendSource != 0u64 {
+            suspend(tcb_src);
+        }
+        let e = Arch_performTransfer(arch, tcb_src, node_state!(ksCurThread));
+        if e != 0u64 {
+            return e;
+        }
+        if call != 0u64 {
+            let ipcBuffer = lookupIPCBuffer(1u64, thread);
+            let mut i: usize = 0;
+            while i < n as usize && i < n_frameRegisters && i < n_msgRegisters {
+                setRegister(
+                    thread,
+                    msgRegisters[i],
+                    getRegister(tcb_src, frameRegisters[i]),
+                );
+                i += 1;
+            }
+            if ipcBuffer as u64 != 0u64 && i < n as usize && i < n_frameRegisters {
+                while i < n as usize && i < n_frameRegisters {
+                    *ipcBuffer.offset((i + 1) as isize) = getRegister(tcb_src, frameRegisters[i]);
+                    i += 1;
+                }
+            }
+            let j = i;
+            i = 0;
+            while i < n_gpRegisters
+                && i + n_frameRegisters < n as usize
+                && i + n_frameRegisters < n_msgRegisters
+            {
+                setRegister(
+                    thread,
+                    msgRegisters[i + n_frameRegisters],
+                    getRegister(tcb_src, gpRegisters[i]),
+                );
+                i += 1;
+            }
+            if ipcBuffer as u64 != 0u64 && i < n_gpRegisters && i + n_frameRegisters < n as usize {
+                while i < n_gpRegisters && i + n_frameRegisters < n as usize {
+                    *ipcBuffer.offset((i + n_frameRegisters + 1) as isize) =
+                        getRegister(tcb_src, gpRegisters[i]);
+                    i += 1;
+                }
+            }
+            setRegister(
+                thread,
+                msgInfoRegister,
+                wordFromMessageInfo(seL4_MessageInfo_new(0, 0, 0, (i + j) as u64)),
+            );
+        }
+        setThreadState(thread, _thread_state::ThreadState_Running as u64);
+        0u64
     }
-    if resumeTarget != 0u64 {
-        restart(dest);
-    }
-    if transferFrame != 0u64 {
+
+    pub unsafe extern "C" fn invokeTCB_WriteRegisters(
+        dest: *mut tcb_t,
+        resumeTarget: bool_t,
+        mut n: u64,
+        arch: u64,
+        buffer: *mut u64,
+    ) -> u64 {
+        let e = Arch_performTransfer(arch, node_state!(ksCurThread), dest);
+        if e != 0u64 {
+            return e;
+        }
+        if n as usize > n_frameRegisters + n_gpRegisters {
+            n = (n_frameRegisters + n_gpRegisters) as u64;
+        }
+        let archInfo = Arch_getSanitiseRegisterInfo(dest);
         let mut i: usize = 0;
-        while i < n_frameRegisters {
-            let v = getRegister(tcb_src, frameRegisters[i]);
-            setRegister(dest, frameRegisters[i], v);
+        while i < n_frameRegisters && i < n as usize {
+            setRegister(
+                dest,
+                frameRegisters[i],
+                sanitiseRegister(
+                    frameRegisters[i],
+                    getSyscallArg((i + 2) as u64, buffer),
+                    archInfo,
+                ),
+            );
+            i += 1;
+        }
+        i = 0;
+        while i < n_gpRegisters && i + n_frameRegisters < n as usize {
+            setRegister(
+                dest,
+                gpRegisters[i],
+                sanitiseRegister(
+                    gpRegisters[i],
+                    getSyscallArg((i + n_frameRegisters + 2) as u64, buffer),
+                    archInfo,
+                ),
+            );
             i += 1;
         }
         let pc = getRestartPC(dest);
         setNextPC(dest, pc);
-    }
-    if transferInteger != 0u64 {
-        let mut i: usize = 0;
-        while i < n_gpRegisters {
-            let v = getRegister(tcb_src, gpRegisters[i]);
-            setRegister(dest, gpRegisters[i], v);
-            i += 1;
+        Arch_postModifyRegisters(dest);
+        if resumeTarget != 0u64 {
+            restart(dest);
         }
+        if dest == node_state!(ksCurThread) {
+            rescheduleRequired();
+        }
+        0u64
     }
-    Arch_postModifyRegisters(dest);
-    if dest == node_state!(ksCurThread) {
-        rescheduleRequired();
-    }
-    Arch_performTransfer(transferArch, tcb_src, dest)
-}
 
-pub unsafe extern "C" fn invokeTCB_ReadRegisters(
-    tcb_src: *mut tcb_t,
-    suspendSource: bool_t,
-    n: u64,
-    arch: u64,
-    call: bool_t,
-) -> u64 {
-    let thread = node_state!(ksCurThread);
-    if suspendSource != 0u64 {
-        suspend(tcb_src);
+    //  ???notification
+    pub unsafe extern "C" fn invokeTCB_NotificationControl(
+        tcb: *mut tcb_t,
+        ntfnPtr: *mut notification_t,
+    ) -> u64 {
+        if ntfnPtr as u64 != 0u64 {
+            bindNotification(tcb, ntfnPtr);
+        } else {
+            unbindNotification(tcb);
+        }
+        0u64
     }
-    let e = Arch_performTransfer(arch, tcb_src, node_state!(ksCurThread));
-    if e != 0u64 {
-        return e;
-    }
-    if call != 0u64 {
-        let ipcBuffer = lookupIPCBuffer(1u64, thread);
-        let mut i: usize = 0;
-        while i < n as usize && i < n_frameRegisters && i < n_msgRegisters {
-            setRegister(
+    pub unsafe extern "C" fn setMRs_syscall_error(
+        thread: *mut tcb_t,
+        receiveIPCBuffer: *mut u64,
+    ) -> u64 {
+        if current_syscall_error.type_ == seL4_Error::seL4_InvalidArgument as u64 {
+            return setMR(
                 thread,
-                msgRegisters[i],
-                getRegister(tcb_src, frameRegisters[i]),
+                receiveIPCBuffer,
+                0,
+                current_syscall_error.invalidArgumentNumber,
+            ) as u64;
+        } else if current_syscall_error.type_ == seL4_Error::seL4_InvalidCapability as u64 {
+            return setMR(
+                thread,
+                receiveIPCBuffer,
+                0,
+                current_syscall_error.invalidCapNumber,
+            ) as u64;
+        } else if current_syscall_error.type_ == seL4_Error::seL4_IllegalOperation as u64 {
+            return 0u64;
+        } else if current_syscall_error.type_ == seL4_Error::seL4_RangeError as u64 {
+            setMR(
+                thread,
+                receiveIPCBuffer,
+                0,
+                current_syscall_error.rangeErrorMin,
             );
-            i += 1;
-        }
-        if ipcBuffer as u64 != 0u64 && i < n as usize && i < n_frameRegisters {
-            while i < n as usize && i < n_frameRegisters {
-                *ipcBuffer.offset((i + 1) as isize) = getRegister(tcb_src, frameRegisters[i]);
-                i += 1;
-            }
-        }
-        let j = i;
-        i = 0;
-        while i < n_gpRegisters
-            && i + n_frameRegisters < n as usize
-            && i + n_frameRegisters < n_msgRegisters
+            return setMR(
+                thread,
+                receiveIPCBuffer,
+                1,
+                current_syscall_error.rangeErrorMax,
+            ) as u64;
+        } else if current_syscall_error.type_ == seL4_Error::seL4_AlignmentError as u64 {
+            return 0u64;
+        } else if current_syscall_error.type_ == seL4_Error::seL4_FailedLookup as u64 {
+            setMR(
+                thread,
+                receiveIPCBuffer,
+                0,
+                (current_syscall_error.failedLookupWasSource != 0u64) as u64,
+            );
+            return setMRs_lookup_failure(thread, receiveIPCBuffer, current_lookup_fault, 1) as u64;
+        } else if current_syscall_error.type_ == seL4_Error::seL4_TruncatedMessage as u64
+            || current_syscall_error.type_ == seL4_Error::seL4_DeleteFirst as u64
+            || current_syscall_error.type_ == seL4_Error::seL4_RevokeFirst as u64
         {
-            setRegister(
+            return 0u64;
+        } else if current_syscall_error.type_ == seL4_Error::seL4_NotEnoughMemory as u64 {
+            return setMR(
                 thread,
-                msgRegisters[i + n_frameRegisters],
-                getRegister(tcb_src, gpRegisters[i]),
-            );
-            i += 1;
+                receiveIPCBuffer,
+                0,
+                current_syscall_error.memoryLeft,
+            ) as u64;
         }
-        if ipcBuffer as u64 != 0u64 && i < n_gpRegisters && i + n_frameRegisters < n as usize {
-            while i < n_gpRegisters && i + n_frameRegisters < n as usize {
-                *ipcBuffer.offset((i + n_frameRegisters + 1) as isize) =
-                    getRegister(tcb_src, gpRegisters[i]);
-                i += 1;
-            }
-        }
-        setRegister(
-            thread,
-            msgInfoRegister,
-            wordFromMessageInfo(seL4_MessageInfo_new(0, 0, 0, (i + j) as u64)),
-        );
+        panic!("Invalid syscall error");
     }
-    setThreadState(thread, _thread_state::ThreadState_Running as u64);
-    0u64
-}
-
-pub unsafe extern "C" fn invokeTCB_WriteRegisters(
-    dest: *mut tcb_t,
-    resumeTarget: bool_t,
-    mut n: u64,
-    arch: u64,
-    buffer: *mut u64,
-) -> u64 {
-    let e = Arch_performTransfer(arch, node_state!(ksCurThread), dest);
-    if e != 0u64 {
-        return e;
-    }
-    if n as usize > n_frameRegisters + n_gpRegisters {
-        n = (n_frameRegisters + n_gpRegisters) as u64;
-    }
-    let archInfo = Arch_getSanitiseRegisterInfo(dest);
-    let mut i: usize = 0;
-    while i < n_frameRegisters && i < n as usize {
-        setRegister(
-            dest,
-            frameRegisters[i],
-            sanitiseRegister(
-                frameRegisters[i],
-                getSyscallArg((i + 2) as u64, buffer),
-                archInfo,
-            ),
-        );
-        i += 1;
-    }
-    i = 0;
-    while i < n_gpRegisters && i + n_frameRegisters < n as usize {
-        setRegister(
-            dest,
-            gpRegisters[i],
-            sanitiseRegister(
-                gpRegisters[i],
-                getSyscallArg((i + n_frameRegisters + 2) as u64, buffer),
-                archInfo,
-            ),
-        );
-        i += 1;
-    }
-    let pc = getRestartPC(dest);
-    setNextPC(dest, pc);
-    Arch_postModifyRegisters(dest);
-    if resumeTarget != 0u64 {
-        restart(dest);
-    }
-    if dest == node_state!(ksCurThread) {
-        rescheduleRequired();
-    }
-    0u64
-}
-
-//  ???notification
-pub unsafe extern "C" fn invokeTCB_NotificationControl(
-    tcb: *mut tcb_t,
-    ntfnPtr: *mut notification_t,
-) -> u64 {
-    if ntfnPtr as u64 != 0u64 {
-        bindNotification(tcb, ntfnPtr);
-    } else {
-        unbindNotification(tcb);
-    }
-    0u64
-}
-pub unsafe extern "C" fn setMRs_syscall_error(
-    thread: *mut tcb_t,
-    receiveIPCBuffer: *mut u64,
-) -> u64 {
-    if current_syscall_error.type_ == seL4_Error::seL4_InvalidArgument as u64 {
-        return setMR(
-            thread,
-            receiveIPCBuffer,
-            0,
-            current_syscall_error.invalidArgumentNumber,
-        ) as u64;
-    } else if current_syscall_error.type_ == seL4_Error::seL4_InvalidCapability as u64 {
-        return setMR(
-            thread,
-            receiveIPCBuffer,
-            0,
-            current_syscall_error.invalidCapNumber,
-        ) as u64;
-    } else if current_syscall_error.type_ == seL4_Error::seL4_IllegalOperation as u64 {
-        return 0u64;
-    } else if current_syscall_error.type_ == seL4_Error::seL4_RangeError as u64 {
-        setMR(
-            thread,
-            receiveIPCBuffer,
-            0,
-            current_syscall_error.rangeErrorMin,
-        );
-        return setMR(
-            thread,
-            receiveIPCBuffer,
-            1,
-            current_syscall_error.rangeErrorMax,
-        ) as u64;
-    } else if current_syscall_error.type_ == seL4_Error::seL4_AlignmentError as u64 {
-        return 0u64;
-    } else if current_syscall_error.type_ == seL4_Error::seL4_FailedLookup as u64 {
-        setMR(
-            thread,
-            receiveIPCBuffer,
-            0,
-            (current_syscall_error.failedLookupWasSource != 0u64) as u64,
-        );
-        return setMRs_lookup_failure(thread, receiveIPCBuffer, current_lookup_fault, 1) as u64;
-    } else if current_syscall_error.type_ == seL4_Error::seL4_TruncatedMessage as u64
-        || current_syscall_error.type_ == seL4_Error::seL4_DeleteFirst as u64
-        || current_syscall_error.type_ == seL4_Error::seL4_RevokeFirst as u64
-    {
-        return 0u64;
-    } else if current_syscall_error.type_ == seL4_Error::seL4_NotEnoughMemory as u64 {
-        return setMR(
-            thread,
-            receiveIPCBuffer,
-            0,
-            current_syscall_error.memoryLeft,
-        ) as u64;
-    }
-    panic!("Invalid syscall error");
-}
 }
 
 #[macro_export]
@@ -1040,7 +1081,7 @@ pub fn add_current_task_to_delayed_list(ticks_to_wait: TickType, can_block_indef
     trace!("Remove succeeded");
 
     {
-        #![cfg(feature = "INCLUDE_xTaskAbortDelay")]
+        #[cfg(feature = "INCLUDE_xTaskAbortDelay")]
         /* About to enter a delayed list, so ensure the ucDelayAborted flag is
         reset to pdFALSE so it can be detected as having been set to pdTRUE
         when the task leaves the Blocked state. */
@@ -1072,7 +1113,7 @@ pub fn add_current_task_to_delayed_list(ticks_to_wait: TickType, can_block_indef
             list to ensure it is not woken by a timing event.  It will block
             indefinitely. */
             let cur_state_list_item = unwrapped_cur.get_state_list_item();
-            list::list_insert_end(&SUSPENDED_TASK_LIST, cur_state_list_item);
+            list::list_insert_end(&task_global::SUSPENDED_TASK_LIST, cur_state_list_item);
         } else {
             /* Calculate the time at which the task should be woken if the event
             does not occur.  This may overflow but this doesn't matter, the
@@ -1086,11 +1127,11 @@ pub fn add_current_task_to_delayed_list(ticks_to_wait: TickType, can_block_indef
             if time_to_wake < get_tick_count!() {
                 /* Wake time has overflowed.  Place this item in the overflow
                 list. */
-                list::list_insert(&OVERFLOW_DELAYED_TASK_LIST, cur_state_list_item);
+                list::list_insert(&task_global::OVERFLOW_DELAYED_TASK_LIST, cur_state_list_item);
             } else {
                 /* The wake time has not overflowed, so the current block list
                 is used. */
-                list::list_insert(&DELAYED_TASK_LIST, unwrapped_cur.get_state_list_item());
+                list::list_insert(&task_global::DELAYED_TASK_LIST, unwrapped_cur.get_state_list_item());
 
                 /* If the task entering the blocked state was placed at the
                 head of the list of blocked tasks then xNextTaskUnblockTime
@@ -1140,7 +1181,7 @@ pub fn add_current_task_to_delayed_list(ticks_to_wait: TickType, can_block_indef
 }
 
 pub fn reset_next_task_unblock_time() {
-    if list_is_empty(&DELAYED_TASK_LIST) {
+    if list_is_empty(&task_global::DELAYED_TASK_LIST) {
         /* The new current delayed list is empty.  Set xNextTaskUnblockTime to
         the maximum possible value so it is	extremely unlikely that the
         if( xTickCount >= xNextTaskUnblockTime ) test will pass until
@@ -1151,7 +1192,7 @@ pub fn reset_next_task_unblock_time() {
         the item at the head of the delayed list.  This is the time at
         which the task at the head of the delayed list should be removed
         from the Blocked state. */
-        let mut temp = get_owner_of_head_entry(&DELAYED_TASK_LIST);
+        let mut temp = get_owner_of_head_entry(&task_global::DELAYED_TASK_LIST);
         set_next_task_unblock_time!(get_list_item_value(&temp.get_state_list_item()));
     }
 }
@@ -1225,7 +1266,7 @@ pub fn task_delete(task_to_delete: Option<TaskHandle>) {
             Place the task in the termination list.  The idle task will
             check the termination list and free up any memory allocated by
             the scheduler for the TCB and stack of the deleted task. */
-            list::list_insert_end(&TASKS_WAITING_TERMINATION, pxtcb.get_state_list_item());
+            list::list_insert_end(&task_global::TASKS_WAITING_TERMINATION, pxtcb.get_state_list_item());
 
             /* Increment the ucTasksDeleted variable so the idle task knows
             there is a task that has been deleted and that it should therefore
@@ -1313,7 +1354,7 @@ pub fn suspend_task(task_to_suspend: TaskHandle) {
         } else {
             mtCOVERAGE_TEST_MARKER!();
         }
-        list_insert_end(&SUSPENDED_TASK_LIST, unwrapped_tcb.get_state_list_item());
+        list_insert_end(&task_global::SUSPENDED_TASK_LIST, unwrapped_tcb.get_state_list_item());
     }
     taskEXIT_CRITICAL!();
 
@@ -1338,7 +1379,7 @@ pub fn suspend_task(task_to_suspend: TaskHandle) {
             /* The scheduler is not running, but the task that was pointed
             to by pxCurrentTCB has just been suspended and pxCurrentTCB
             must be adjusted to point to a different task. */
-            if current_list_length(&SUSPENDED_TASK_LIST) != get_current_number_of_tasks!() {
+            if current_list_length(&task_global::SUSPENDED_TASK_LIST) != get_current_number_of_tasks!() {
                 task_switch_context();
             }
             //TODO: comprehend the implement of cuurrent_tcb
@@ -1363,9 +1404,9 @@ pub fn task_is_tasksuspended(xtask: &TaskHandle) -> bool {
     //assert!( xtask );
 
     /* Is the task being resumed actually in the suspended list? */
-    if is_contained_within(&SUSPENDED_TASK_LIST, &tcb.get_state_list_item()) {
+    if is_contained_within(&task_global::SUSPENDED_TASK_LIST, &tcb.get_state_list_item()) {
         /* Has the task already been resumed from within an ISR? */
-        if !is_contained_within(&PENDING_READY_LIST, &tcb.get_event_list_item()) {
+        if !is_contained_within(&task_global::PENDING_READY_LIST, &tcb.get_event_list_item()) {
             /* Is it in the suspended list because it is in the	Suspended
             state, or because is is blocked with no timeout? */
             if get_list_item_container(&tcb.get_event_list_item()).is_none() {

@@ -47,7 +47,8 @@ default = [
  	"INCLUDE_vTaskSuspend",
 	"INCLUDE_vTaskDelete",
 	"INCLUDE_uxTaskPriorityGet",
-	"INCLUDE_vTaskPrioritySet"
+	"INCLUDE_vTaskPrioritySet",
+	"configUSE_CAPS"
 ]
 # Configuations starting with "INCLUDE_"
 # For more information, read Chapter 3 of the book.
@@ -98,3 +99,4 @@ configSUPPORT_STATIC_ALLOCATION = []
 configSUPPORT_DYNAMIC_ALLOCATION = []
 configUSE_TASK_FPU_SUPPORT = []
 configUSE_CAPS = []
+configUSE_STREAMBUFFER = []

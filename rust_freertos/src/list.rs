@@ -2,7 +2,10 @@ use std::fmt;
 use std::sync::{Arc, RwLock, Weak};
 
 use crate::port::{portMAX_DELAY, TickType, UBaseType};
+#[cfg(not(feature = "configUSE_CAPS"))]
 use crate::task_control::{TaskHandle, TCB};
+#[cfg(feature = "configUSE_CAPS")]
+use crate::task_control_cap::{TaskHandle, TCB};
 
 impl fmt::Debug for ListItem {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

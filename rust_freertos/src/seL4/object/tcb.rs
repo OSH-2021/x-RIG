@@ -20,8 +20,8 @@ use super::super::thread::*;
 use super::super::types::*;
 
 extern "C" {
-    static mut ksCurThread: *mut tcb_t;     //  CURRENT_TCB
-    static mut ksReadyQueues: [tcb_queue_t; 256];   //  READY_TASK_LISTS
+    static mut ksCurThread: *mut tcb_t;     //  ->  CURRENT_TCB
+    static mut ksReadyQueues: [tcb_queue_t; 256];   //  -> READY_TASK_LISTS
     static mut ksReadyQueuesL1Bitmap: [u64; 1];
     static mut ksReadyQueuesL2Bitmap: [[u64; L2_BITMAP_SIZE]; 1];
     static mut current_extra_caps: extra_caps_t;

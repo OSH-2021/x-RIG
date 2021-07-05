@@ -3,7 +3,10 @@ use crate::list::ListLink;
 use crate::port::*;
 // use crate::kernel::*;
 use crate::projdefs::pdFALSE;
+#[cfg(not(feature = "configUSE_CAPS"))]
 use crate::task_control::*;
+#[cfg(feature = "configUSE_CAPS")]
+use crate::task_control_cap::*;
 use crate::task_global::*;
 use crate::*;
 

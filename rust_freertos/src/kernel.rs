@@ -4,7 +4,10 @@
 use crate::list;
 use crate::port::UBaseType;
 use crate::projdefs::pdFALSE;
+#[cfg(not(feature = "configUSE_CAPS"))]
 use crate::task_control::{TaskHandle, TCB};
+#[cfg(feature = "configUSE_CAPS")]
+use crate::task_control_cap::{TaskHandle, TCB};
 use crate::task_global::*;
 use crate::*; // TODO: Is this line necessary?
               // use crate::task_control::TCB;

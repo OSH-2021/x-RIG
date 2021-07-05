@@ -1,7 +1,10 @@
 use crate::kernel::*;
 use crate::list::*;
 use crate::port::*;
+#[cfg(not(feature = "configUSE_CAPS"))]
 use crate::task_control::*;
+#[cfg(feature = "configUSE_CAPS")]
+use crate::task_control_cap::*;
 use crate::*;
 use std::ffi::*;
 use std::mem::*;

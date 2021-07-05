@@ -1,5 +1,8 @@
 use crate::list::ListLink;
 use crate::port::{BaseType, TickType, UBaseType};
+#[cfg(feature = "configUSE_CAPS")]
+use crate::task_control_cap::TaskHandle;
+#[cfg(not(feature = "configUSE_CAPS"))]
 use crate::task_control::TaskHandle;
 use crate::*;
 use std::sync::RwLock;
@@ -61,7 +64,7 @@ lazy_static! {
 
 #[cfg(feature = "configUSE_CAPS")]
 lazy_static! {
-    pub static ref ENDPOINT_LIST: ListLink = Default::default();
+    pub static ref ENDPOINT_LIST: [ListLink; configMAX_ENDPOINTS!()] = Default::default();
 }
 /* ------------------ End global lists ------------------- */
 

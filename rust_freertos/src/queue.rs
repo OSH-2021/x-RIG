@@ -4,6 +4,10 @@ use crate::list::*;
 use crate::queue_h::*;
 use crate::*;
 use crate::task_queue::*;
+#[cfg(feature = "configUSE_CAPS")]
+use crate::task_control_cap::*;
+#[cfg(not(feature = "configUSE_CAPS"))]
+use crate::task_control::*;
 
 pub const queueQUEUE_IS_MUTEX: UBaseType = 0;
 pub const queueUNLOCKED: i8 = -1;
@@ -842,7 +846,7 @@ impl<T> QueueDefinition<T> where T: Default + Clone, {
     ///
     /// # Return:
     /// `Option<task_control::TaskHandle>` - the transformed TaskHandle
-    pub fn transed_task_handle_for_mutex(&self) -> Option<task_control::TaskHandle> {
+    pub fn transed_task_handle_for_mutex(&self) -> Option<TaskHandle> {
         /* use unsafe to get transed_task_handle for mutex
          * inplemented by: Ning Yuting
          */
@@ -850,11 +854,11 @@ impl<T> QueueDefinition<T> where T: Default + Clone, {
             let untransed_task_handle = self.pcQueue.get(0).cloned().unwrap();
             trace!("successfully get the task handle");
             let untransed_task_handle = Box::new(untransed_task_handle);
-            let mut task_handle: Option<task_control::TaskHandle>;
+            let mut task_handle: Option<TaskHandle>;
             unsafe {
                 let transed_task_handle = std::mem::transmute::<
                     Box<T>,
-                    Box<Option<task_control::TaskHandle>>,
+                    Box<Option<TaskHandle>>,
                 >(untransed_task_handle);
                 task_handle = *transed_task_handle
             }
@@ -864,6 +868,7 @@ impl<T> QueueDefinition<T> where T: Default + Clone, {
             None
         }
     }
+
 }
 
 /// # Description
@@ -876,13 +881,13 @@ impl<T> QueueDefinition<T> where T: Default + Clone, {
 ///
 /// # Return:
 /// `T` - the transformed T.
-fn transed_task_handle_to_T<T>(task_handle: Option<task_control::TaskHandle>) -> T {
+fn transed_task_handle_to_T<T>(task_handle: Option<TaskHandle>) -> T {
     /* use unsafe to transmute Option<TaskHandle> to T type*/
     let mut T_type: T;
     let task_handle = Box::new(task_handle);
     unsafe {
         let transed_T =
-            std::mem::transmute::<Box<Option<task_control::TaskHandle>>, Box<T>>(task_handle);
+            std::mem::transmute::<Box<Option<TaskHandle>>, Box<T>>(task_handle);
         T_type = *transed_T;
     }
     T_type

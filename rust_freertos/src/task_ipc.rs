@@ -1,5 +1,6 @@
 use task_control_cap::*;
 use seL4::object::tcb::*;
+use seL4::object::arch_structures::*;
 
 impl TaskHandle {
 
