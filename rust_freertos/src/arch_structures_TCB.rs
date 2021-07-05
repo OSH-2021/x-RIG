@@ -3,10 +3,7 @@
 #![allow(dead_code)]
 #![allow(non_upper_case_globals)]
 
-use super::super::structures::*;
-use super::super::types;
-use super::super::types::bool_t;
-use super::super::types::word_t;
+use crate::type_eq::*;
 
 //generated/arch/object/structures_gen.h
 #[repr(C)]
@@ -619,9 +616,9 @@ fn cap_get_modeCapIsPhysical(cap: cap_t) -> bool_t {
         ctag if ctag == (cap_tag_t::cap_pml4_cap as u64)
             || ctag == (cap_tag_t::cap_pdpt_cap as u64) =>
         {
-            types::_bool::r#true as u64
+            _bool::r#true as u64
         }
-        _ => types::_bool::r#false as u64,
+        _ => _bool::r#false as u64,
     }
 }
 
@@ -664,12 +661,12 @@ pub fn cap_get_archCapIsPhysical(cap: cap_t) -> bool_t {
             || ctag == (cap_tag_t::cap_page_directory_cap as u64)
             || ctag == (cap_tag_t::cap_asid_pool_cap as u64) =>
         {
-            types::_bool::r#true as u64
+            _bool::r#true as u64
         }
         ctag if ctag == (cap_tag_t::cap_io_port_cap as u64)
             || ctag == (cap_tag_t::cap_asid_control_cap as u64) =>
         {
-            types::_bool::r#false as u64
+            _bool::r#false as u64
         }
         _ => cap_get_modeCapIsPhysical(cap),
     }
@@ -685,7 +682,7 @@ pub fn Arch_isCapRevocable(derivedCap: cap_t, srcCap: cap_t) -> bool_t {
     if cap_get_capType(derivedCap) == cap_tag_t::cap_io_port_cap as u64 {
         (cap_get_capType(srcCap) == cap_tag_t::cap_io_port_control_cap as u64) as u64
     } else {
-        types::_bool::r#false as u64
+        _bool::r#false as u64
     }
 }
 
