@@ -40,8 +40,8 @@ extern "C" {
 
 /// # Description:
 ///     x bits of 1
-/// * Implemented by: 
-/// 
+/// * Implemented by:
+///
 /// # Arguments:
 ///     x: x bits of 1
 /// # Return:

@@ -55,7 +55,7 @@ default = [
 # Comment out the functions you don't need.
 INCLUDE_vTaskPrioritySet = []
 INCLUDE_uxTaskPriorityGet = []
-INCLUDE_vTaskDelete = []     
+INCLUDE_vTaskDelete = []
 INCLUDE_vTaskSuspend = []
 INCLUDE_vTaskDelayUntil = []
 INCLUDE_vTaskDelay = []
@@ -71,7 +71,7 @@ INCLUDE_xTaskGetHandle = []
 INCLUDE_xTaskResumeFromISR = []
 
 # Configuations starting with "config_"
-# 
+#
 # IMPORTANT NOTE!
 # ONLY those config_* that represents a True/False value are defined here.
 # Those that represent numeric values are defined as macros in config.rs
