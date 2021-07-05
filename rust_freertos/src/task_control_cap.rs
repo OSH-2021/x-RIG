@@ -10,8 +10,9 @@ use std::ops::FnOnce;
 use std::mem;
 use std::sync::{Arc, RwLock, Weak};
 use crate::seL4::object::arch_structures::*;
-use crate::seL4::object::cnode::*;
+use crate::CNode::*;
 use crate::type_eq::*;
+
 
 /* Task states returned by eTaskGetState. */
 #[derive(Copy, Clone, Debug)]
@@ -42,6 +43,7 @@ pub enum updated_top_priority {
     Updated,
     Notupdated,
 }
+
 
 #[derive(Debug)]
 pub struct task_control_block {
@@ -94,6 +96,7 @@ pub struct task_control_block {
 
 }
 
+pub type tcb_t = task_control_block;
 pub type TCB = task_control_block;
 pub type Task = task_control_block;
 impl task_control_block {
@@ -814,7 +817,7 @@ impl TaskHandle {
     }
 
     pub unsafe extern "C" fn invokeTCB_CopyRegisters(
-        dest: &self,
+        dest: &Self,
         src: &Self,
         suspendSource: bool_t,
         resumeTarget: bool_t,
@@ -1061,7 +1064,7 @@ macro_rules! get_tcb_from_handle {
 macro_rules! get_tcb_from_handle_mut {
     ($handle: expr) => {
         match $handle.0.try_write() {
-            Ok(a) => a,
+            Ok(a) => &mut a,
             Err(_) => {
                 warn!("TCB was locked, write failed");
                 panic!("Task handle locked!");

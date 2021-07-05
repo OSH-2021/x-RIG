@@ -35,6 +35,12 @@ pub mod semaphore;
 pub mod task_timemanager;
 #[cfg(feature = "configUSE_CAPS")]
 pub mod seL4;
+#[cfg(feature = "configUSE_CAPS")]
+pub mod CNode;
+#[cfg(feature = "configUSE_CAPS")]
+pub mod CSpace;
+#[cfg(feature = "configUSE_CAPS")]
+pub mod arch_structures_TCB;
 
 #[cfg(feature = "configUSE_CAPS")]
 #[macro_use]
