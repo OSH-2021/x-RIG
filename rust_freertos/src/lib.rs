@@ -50,7 +50,7 @@ pub mod task_control_cap;
 #[macro_use]
 pub mod task_control;
 #[cfg(feature = "configUSE_CAPS")]
-pub mod type_eq;
+pub mod types;
 // #[cfg(feature = "configUSE_STREAMBUFFER")]
 // pub mod stream_buffer;
 #[cfg(feature = "configUSE_CAPS")]

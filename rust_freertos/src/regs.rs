@@ -1,8 +1,7 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]
-use crate::task_control_cap::tcb_t;
-pub type register_t = usize;
+use crate::types::{word_t, tcb_t};
 
 pub unsafe fn setRegister(thread: *mut tcb_t, reg_index: usize, w: word_t) {
     (*thread).registers[reg_index] = w;

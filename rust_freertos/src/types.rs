@@ -9,7 +9,7 @@ use crate::*;
 use crate::CNode::*;
 use crate::arch_structures_TCB::*;
 
-
+pub type tcb_t = task_control_block;
 pub const seL4_TCBBits: u64 = 11;
 
 //  capability

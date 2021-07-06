@@ -3,7 +3,7 @@
 #![allow(dead_code)]
 #![allow(non_upper_case_globals)]
 
-use crate::type_eq::*;
+use crate::types::*;
 
 //generated/arch/object/structures_gen.h
 #[repr(C)]

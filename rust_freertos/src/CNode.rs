@@ -4,7 +4,7 @@
 #![allow(non_upper_case_globals)]
 #![allow(unused_attributes)]
 
-use crate::type_eq::*;
+use crate::types::*;
 use crate::task_control_cap::*;
 use crate::arch_structures_TCB::*;
 use crate::CSpace::*;
