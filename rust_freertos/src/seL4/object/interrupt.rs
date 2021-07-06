@@ -18,6 +18,7 @@ use super::super::structures::*;
 use super::super::syscall::*;
 use super::super::thread::*;
 use super::super::types::*;
+use crate::*;
 
 extern "C" {
     static mut intStateIRQTable: [u64; 126];

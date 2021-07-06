@@ -41,6 +41,8 @@ pub mod CNode;
 pub mod CSpace;
 #[cfg(feature = "configUSE_CAPS")]
 pub mod arch_structures_TCB;
+#[cfg(feature = "configUSE_CAPS")]
+pub mod task_ipc;
 
 #[cfg(feature = "configUSE_CAPS")]
 #[macro_use]

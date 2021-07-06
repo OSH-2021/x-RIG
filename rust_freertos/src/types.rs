@@ -1,4 +1,14 @@
-//  this file is used to transform types between seL4 and freertos
+/// this file is used to transform types between seL4 and freertos
+/// it contains
+///     cap
+///     CTE
+///     IRQ
+///     endpoint
+///     notification
+///     TCB
+///     message
+///     error
+///     exception
 use crate::task_global::*;
 use crate::kernel::*;
 use crate::list::*;
@@ -11,6 +21,7 @@ use crate::arch_structures_TCB::*;
 
 pub type tcb_t = task_control_block;
 pub const seL4_TCBBits: u64 = 11;
+
 
 //  capability
 #[derive(Copy, Clone)]
@@ -536,3 +547,116 @@ macro_rules! userError {
     ($($x:expr),*) => {};
 }
 
+//  invocations, all APIS, functions
+pub enum invocation_label {
+    InvalidInvocation = 0,
+    UntypedRetype = 1,
+    TCBReadRegisters = 2,
+    TCBWriteRegisters = 3,
+    TCBCopyRegisters = 4,
+    TCBConfigure = 5,
+    TCBSetPriority = 6,
+    TCBSetMCPriority = 7,
+    TCBSetSchedParams = 8,
+    TCBSetIPCBuffer = 9,
+    TCBSetSpace = 10,
+    TCBSuspend = 11,
+    TCBResume = 12,
+    TCBBindNotification = 13,
+    TCBUnbindNotification = 14,
+    TCBSetTLSBase = 15,
+    CNodeRevoke = 16,
+    CNodeDelete = 17,
+    CNodeCancelBadgedSends = 18,
+    CNodeCopy = 19,
+    CNodeMint = 20,
+    CNodeMove = 21,
+    CNodeMutate = 22,
+    CNodeRotate = 23,
+    CNodeSaveCaller = 24,
+    IRQIssueIRQHandler = 25,
+    IRQAckIRQ = 26,
+    IRQSetIRQHandler = 27,
+    IRQClearIRQHandler = 28,
+    DomainSetSet = 29,
+    nInvocationLabels = 30,
+}
+
+//  cap
+pub unsafe extern "C" fn deriveCap(slot: *mut cte_t, cap: cap_t) -> deriveCap_ret_t {
+    if isArchCap(cap) != 0u64 {
+        // return Arch_deriveCap(slot, cap);    //  TODO extern "C"
+    }
+    let cap_type = cap_get_capType(cap);
+    if cap_type == cap_tag_t::cap_zombie_cap as u64
+        || cap_type == cap_tag_t::cap_irq_control_cap as u64
+    {
+        return deriveCap_ret_t {
+            status: 0u64,
+            cap: cap_null_cap_new(),
+        };
+    } else if cap_type == cap_tag_t::cap_untyped_cap as u64 {
+        let status = ensureNoChildren(slot);
+        if status != 0u64 {
+            return deriveCap_ret_t {
+                status: status,
+                cap: cap_null_cap_new(),
+            };
+        } else {
+            return deriveCap_ret_t {
+                status: status,
+                cap: cap,
+            };
+        }
+    } else if cap_type == cap_tag_t::cap_reply_cap as u64 {
+        return deriveCap_ret_t {
+            status: 0u64,
+            cap: cap_null_cap_new(),
+        };
+    }
+    deriveCap_ret_t {
+        status: 0u64,
+        cap: cap,
+    }
+}
+
+pub unsafe extern "C" fn updateCapData(preserve: bool_t, newData: u64, cap: cap_t) -> cap_t {
+    if isArchCap(cap) != 0u64 {
+        // return Arch_updateCapData(preserve, newData, cap);   //  TODO extern "C"
+    }
+    let cap_type = cap_get_capType(cap);
+    if cap_type == cap_tag_t::cap_endpoint_cap as u64 {
+        if preserve == 0u64 && cap_endpoint_cap_get_capEPBadge(cap) == 0 {
+            return cap_endpoint_cap_set_capEPBadge(cap, newData);
+        } else {
+            return cap_null_cap_new();
+        }
+    } else if cap_type == cap_tag_t::cap_notification_cap as u64 {
+        if preserve == 0u64 && cap_notification_cap_get_capNtfnBadge(cap) == 0 {
+            return cap_notification_cap_set_capNtfnBadge(cap, newData);
+        } else {
+            return cap_null_cap_new();
+        }
+    } else if cap_type == cap_tag_t::cap_cnode_cap as u64 {
+        let w = seL4_CNode_CapData_t { words: [newData] };
+        let guardSize = seL4_CNode_CapData_get_guardSize(w);
+        if guardSize + cap_cnode_cap_get_capCNodeRadix(cap) > wordBits {
+            return cap_null_cap_new();
+        } else {
+            let guard = seL4_CNode_CapData_get_guard(w) & MASK!(guardSize);
+            let mut new_cap = cap_cnode_cap_set_capCNodeGuard(cap, guard);
+            new_cap = cap_cnode_cap_set_capCNodeGuardSize(new_cap, guardSize);
+            return new_cap;
+        }
+    }
+    cap
+}
+
+pub extern "C" fn hasCancelSendRights(cap: cap_t) -> bool_t {
+    if cap_get_capType(cap) == cap_tag_t::cap_endpoint_cap as u64 {
+        return (cap_endpoint_cap_get_capCanSend(cap) != 0u64
+            && cap_endpoint_cap_get_capCanReceive(cap) != 0u64
+            && cap_endpoint_cap_get_capCanGrant(cap) != 0u64) as u64;
+    }
+    0u64
+}

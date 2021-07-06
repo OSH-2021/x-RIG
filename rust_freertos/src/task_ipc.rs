@@ -1,11 +1,11 @@
-use task_control_cap::*;
-use seL4::object::tcb::*;
-use seL4::object::arch_structures::*;
-
-impl TaskHandle {
+use crate::task_control_cap::*;
+use crate::types::*;
+use crate::arch_structures_TCB::*;
+use crate::CNode::*;
+use crate::CSpace::*;
 
 pub unsafe fn setupCallerCap(sender: *mut tcb_t, receiver: *mut tcb_t) {
-    setThreadState(sender, _thread_state::ThreadState_BlockedOnReply as u64);
+    setThreadState(sender, _thread_state::BlockedOnReply);
     let replySlot = tcb_ptr_cte_ptr(sender, tcb_cnode_index::tcbReply as u64);
     let callerSlot = tcb_ptr_cte_ptr(receiver, tcb_cnode_index::tcbCaller as u64);
     cteInsert(
@@ -20,7 +20,8 @@ pub unsafe fn deleteCallerCap(receiver: *mut tcb_t) {
     cteDeleteOne(callerSlot);
 }
 
-pub unsafe extern "C" fn lookupExtraCaps(
+// pub unsafe extern "C" fn lookupExtraCaps(
+pub unsafe fn lookupExtraCaps(
     thread: *mut tcb_t,
     bufferPtr: *mut u64,
     info: seL4_MessageInfo_t,
@@ -47,7 +48,8 @@ pub unsafe extern "C" fn lookupExtraCaps(
     0u64
 }
 
-pub unsafe extern "C" fn copyMRs(
+// pub unsafe extern "C" fn copyMRs(
+pub unsafe fn copyMRs(
     sender: *mut tcb_t,
     sendBuf: *mut u64,
     receiver: *mut tcb_t,
@@ -73,5 +75,14 @@ pub unsafe extern "C" fn copyMRs(
     i as u64
 }
 
+
+//  syscall.rs
+//  得到当前线程第i个消息寄存器(IPC Buffer)字
+#[inline]
+pub unsafe fn getSyscallArg(i: u64, ipc_buffer: *mut u64) -> u64 {
+    if (i as usize) < n_msgRegisters {
+        return getRegister(node_state!(ksCurThread), msgRegisters[i as usize]);
+    }
+    *ipc_buffer.offset((i + 1) as isize)
 }
 
