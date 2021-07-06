@@ -29,7 +29,6 @@ pub struct finaliseSlot_ret_t {
 extern "C" {
     static mut current_syscall_error: syscall_error_t;
     static mut current_lookup_fault: lookup_fault_t;
-    static mut ksCurThread: *mut tcb_t;
     fn preemptionPoint() -> u64;
     fn finaliseCap(cap: cap_t, final_: bool_t, exposed: bool_t) -> finaliseCap_ret_t;
     fn sameRegionAs(cap_a: cap_t, cap_b: cap_t) -> bool_t;
@@ -320,7 +319,7 @@ pub unsafe extern "C" fn invokeCNodeRotate(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn invokeCNodeSaveCaller(destSlot: *mut cte_t) -> u64 {
+pub fn invokeCNodeSaveCaller(destSlot: *mut cte_t) -> u64 {
     let srcSlot = tcb_ptr_cte_ptr(ksCurThread, tcb_cnode_index::tcbCaller as u64);
     let cap = (*srcSlot).cap;
     let cap_type = cap_get_capType(cap);

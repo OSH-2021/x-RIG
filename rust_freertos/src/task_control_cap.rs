@@ -38,7 +38,7 @@ extern "C" {
 // TODO how to convert??
 // indeed we should have a lock on it
 static mut current_tcb_handle : TaskHandle = get_current_task_handle!();
-static mut ksCurThread: *mut tcb_t = get_tcb_from_handle_mut!(current_tcb_handle);  //  TODO->  CURRENT_TCB
+pub static mut ksCurThread: *mut tcb_t = get_tcb_from_handle_mut!(&current_tcb_handle);  //  TODO->  CURRENT_TCB
 
 
 /* Task states returned by eTaskGetState. */
@@ -1065,7 +1065,8 @@ impl TaskHandle {
             // restart(dest_ptr);
             resume_task(dest);
         }
-        if dest_ptr == node_state!(ksCurThread) {
+        // if dest_ptr == node_state!(ksCurThread) {
+        if *dest == get_current_task_handle!() {
             // rescheduleRequired();
             // TODO reschedule
         }
@@ -1216,7 +1217,7 @@ macro_rules! get_tcb_from_handle {
 macro_rules! get_tcb_from_handle_mut {
     ($handle: expr) => {
         match $handle.0.try_write() {
-            Ok(a) => &mut a,
+            Ok(a) => &mut *a,
             Err(_) => {
                 warn!("TCB was locked, write failed");
                 panic!("Task handle locked!");

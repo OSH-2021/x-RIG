@@ -1,3 +1,8 @@
+- [ ] tcb_t
+- [ ] ksCurThread
+- [ ] 指针与TaskHandle的private域冲突问题
+- [ ] untyped add to TCB
+
 ***
 
 ## 6.12

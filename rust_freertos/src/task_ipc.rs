@@ -3,16 +3,29 @@ use crate::types::*;
 use crate::arch_structures_TCB::*;
 use crate::CNode::*;
 use crate::CSpace::*;
+use crate::regs::*;
+use crate::*;
 
-pub unsafe fn setupCallerCap(sender: *mut tcb_t, receiver: *mut tcb_t) {
-    setThreadState(sender, _thread_state::BlockedOnReply);
-    let replySlot = tcb_ptr_cte_ptr(sender, tcb_cnode_index::tcbReply as u64);
-    let callerSlot = tcb_ptr_cte_ptr(receiver, tcb_cnode_index::tcbCaller as u64);
-    cteInsert(
-        cap_reply_cap_new(0u64, sender as u64),
-        replySlot,
-        callerSlot,
-    );
+extern "C" {
+    static mut current_extra_caps: extra_caps_t;
+    static mut current_fault: seL4_Fault_t;
+}
+
+impl TaskHandle {
+    pub unsafe fn setupCallerCap(sender: &mut Self, receiver: &mut Self) {
+        // setThreadState(sender, _thread_state::BlockedOnReply);
+        sender.set_state(_thread_state::BlockedOnReply);
+        let sender_tcb = get_tcb_from_handle_mut!(sender);
+        let receiver_tcb = get_tcb_from_handle_mut!(receiver);
+        let sender_ptr = sender_tcb as *mut tcb_t;
+        let replySlot = tcb_ptr_cte_ptr(sender_tcb, tcb_cnode_index::tcbReply as u64);
+        let callerSlot = tcb_ptr_cte_ptr(receiver_tcb, tcb_cnode_index::tcbCaller as u64);
+        cteInsert(
+            cap_reply_cap_new(0u64, sender_ptr as u64),
+            replySlot,
+            callerSlot,
+        );
+    }
 }
 
 pub unsafe fn deleteCallerCap(receiver: *mut tcb_t) {
@@ -81,8 +94,13 @@ pub unsafe fn copyMRs(
 #[inline]
 pub unsafe fn getSyscallArg(i: u64, ipc_buffer: *mut u64) -> u64 {
     if (i as usize) < n_msgRegisters {
-        return getRegister(node_state!(ksCurThread), msgRegisters[i as usize]);
+        return getRegister(ksCurThread, msgRegisters[i as usize]);
     }
     *ipc_buffer.offset((i + 1) as isize)
 }
 
+
+#[no_mangle]
+pub unsafe extern "C" fn getExtraCPtr(bufferPtr: *mut u64, i: u64) -> u64 {
+    *bufferPtr.offset((seL4_MsgMaxLength + 2 + i) as isize)
+}

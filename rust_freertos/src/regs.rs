@@ -6,7 +6,7 @@ use crate::types::{word_t, tcb_t};
 pub unsafe fn setRegister(thread: *mut tcb_t, reg_index: usize, w: word_t) {
     (*thread).registers[reg_index] = w;
 }
-pub unsafe fn getRegister(thread: *const tcb_t, reg_index: usize) -> word_t {
+pub unsafe fn getRegister(thread: *mut tcb_t, reg_index: usize) -> word_t {
     (*thread).registers[reg_index]
 }
 
