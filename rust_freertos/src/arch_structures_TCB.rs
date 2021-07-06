@@ -3,6 +3,20 @@
 #![allow(dead_code)]
 #![allow(non_upper_case_globals)]
 
+/// this file is used to claim structures related to architecture
+/// it contains
+///     pde
+///     pte
+///     x86 irq
+///     endpoint
+///     irq handler
+///     cap
+///     thread_state
+///     Fault
+///     lookup_fault
+///     notification
+///     CNode guard
+
 use crate::types::*;
 
 //generated/arch/object/structures_gen.h

@@ -7,11 +7,8 @@
 #![allow(unused_mut)]
 #![allow(unreachable_code)]
 
-use super::errors::*;
-use super::failures::*;
-use super::object::arch_structures::*;
-use super::structures::*;
-use super::types::*;
+use crate::types::*;
+use crate::arch_structures_TCB::*;
 
 #[repr(C)]
 #[derive(Copy, Clone)]

@@ -10,11 +10,11 @@ use crate::regs::*;
 use std::ops::FnOnce;
 use std::mem;
 use std::sync::{Arc, RwLock, Weak};
-use crate::seL4::object::arch_structures::*;
+use crate::arch_structures_TCB::*;
 use crate::CNode::*;
-use crate::type_eq::*;
+use crate::types::*;
+use crate::task_ipc::*;
 
-pub type tcb_t = task_control_block;
 pub const L2_BITMAP_SIZE: usize = (256 + (1 << 6) - 1) / (1 << 6);
 extern "C" {
     // TODO change to current TCB in task_global
@@ -33,6 +33,7 @@ extern "C" {
     pub fn Arch_setTCBIPCBuffer(thread: *mut tcb_t, bufferAddr: u64);
     pub fn Arch_postModifyRegisters(tptr: *mut tcb_t);
     pub fn Arch_performTransfer(arch: u64, tcb_src: *mut tcb_t, dest: *mut tcb_t) -> u64;
+    pub fn sameObjectAs(cap_a: cap_t, cap_b: cap_t) -> bool_t;
     // fn kprintf(format: *const u8, ...) -> u64;
 }
 
@@ -54,6 +55,7 @@ pub enum TaskState {
     BlockedOnNotificn,                  //  seL4
     Idle,                               //  seL4
 }
+ pub type _thread_state = TaskState;
 
 pub enum thread_control_flag {
     thread_control_update_priority = 0x1,
@@ -116,12 +118,12 @@ pub struct task_control_block {
     // time_slice : UBaseType, // freertos应该也有内置的时间片吧 在哪？
     fault_handler : UBaseType, // used only once in qwq
     ipc_buffer : UBaseType, // 总觉得这个和stream buffer很像
-    registers : [word_t; n_contextRegisters]
+    pub registers : [word_t; n_contextRegisters]
 }
 
 pub unsafe extern "C" fn suspend(target: *mut tcb_t) {
     cancelIPC(target);
-    setThreadState(target, TaskState::InActive as u64);
+    setThreadState(target, TaskState::InActive);
     tcbSchedDequeue(target);
 }
 
@@ -130,7 +132,7 @@ pub unsafe extern "C" fn restart(target: *mut tcb_t) {
     if isBlocked(target) != 0 {
         cancelIPC(target);
         setupReplyMaster(target);
-        setThreadState(target, _thread_state::ThreadState_Restart as u64);
+        setThreadState(target, _thread_state::Restart);
         tcbSchedEnqueue(target);
         possibleSwitchTo(target);
     }
@@ -447,7 +449,7 @@ impl task_control_block {
         self.base_priority = new_val
     }
 
-    //  TODO
+    //  TODO add other member's setter, getter and else
     pub fn set_fault_handler(&mut self, faulteq: u64) {
         self.fault_handler = faulteq;
     }
@@ -600,7 +602,7 @@ impl TaskHandle {
     ///
     /// # Return
     ///
-    /// TODO
+    /// TODO append task to ready list
     pub fn append_task_to_ready_list(&self) -> Result<(), FreeRtosError> {
         let unwrapped_tcb = get_tcb_from_handle!(self);
         let priority = self.get_priority();
@@ -717,9 +719,9 @@ impl TaskHandle {
     /// # Arguments:
     ///     self
     /// # Return:
-    ///     Ok(tcb_queue?)
+    ///     Ok(())
     ///     Err(FreeRtosError)
-    /// TODO return
+    /// TODO return what?
     pub fn append_task_to_endpoint_list(&self, index_queue: u64) -> Result<(), FreeRtosError> {
         let unwrapped_tcb = get_tcb_from_handle!(self);
         list::list_insert_end(&task_global::ENDPOINT_LIST[index_queue as usize], Arc::clone(&unwrapped_tcb.state_list_item));
@@ -790,6 +792,14 @@ impl TaskHandle {
         get_tcb_from_handle_mut!(self).set_base_priority(new_val)
     }
 
+    /// # Description:
+    ///    set TaskHandle's slot, fault handler, mcp, priority, CTable, VTable, IPC buffer
+    /// * Implemented by: 
+    ///    Lslightly
+    /// # Arguments:
+    ///    
+    /// # Return:
+    ///    
     pub fn invokeTCB_ThreadControl(
         &self,
         slot: *mut cte_t,
@@ -806,17 +816,21 @@ impl TaskHandle {
         updateFlags: u64,
     ) -> u64 {
         let target_tcb: &mut TCB = get_tcb_from_handle_mut!(self);
-        let target_ptr = target_tcb as *mut TCB;    //  raw pointer, TODO
+        let target_ptr: *mut TCB = target_tcb; //  as_raw??? TODO
         let tCap = cap_thread_cap_new(target_ptr as u64);
+        //  Fault Handler
         if updateFlags & thread_control_flag::thread_control_update_space as u64 != 0u64 {
             target_tcb.set_fault_handler(faultep);
         }
+        //  Max Control Priority
         if updateFlags & thread_control_flag::thread_control_update_mcp as u64 != 0u64 {
             target_tcb.set_MCPriority(mcp);
         }
+        //  Priority
         if updateFlags & thread_control_flag::thread_control_update_priority as u64 != 0u64 {
             target_tcb.set_priority(priority);
         }
+        //  CTable
         if updateFlags & thread_control_flag::thread_control_update_space as u64 != 0u64 {
             let rootSlot = tcb_ptr_cte_ptr(target_ptr, tcb_cnode_index::tcbCTable as u64);
             let e = cteDelete(rootSlot, 1u64);
@@ -829,6 +843,7 @@ impl TaskHandle {
                 cteInsert(cRoot_newCap, cRoot_srcSlot, rootSlot);
             }
         }
+        //  VTable
         if updateFlags & thread_control_flag::thread_control_update_space as u64 != 0u64 {
             let rootSlot = tcb_ptr_cte_ptr(target_ptr, tcb_cnode_index::tcbVTable as u64);
             let e = cteDelete(rootSlot, 1u64);
@@ -841,6 +856,7 @@ impl TaskHandle {
                 cteInsert(vRoot_newCap, vRoot_srcSlot, rootSlot);
             }
         }
+        //  IPC Buffer
         if updateFlags & thread_control_flag::thread_control_update_ipc_buffer as u64 != 0u64 {
             let bufferSlot = tcb_ptr_cte_ptr(target_ptr, tcb_cnode_index::tcbBuffer as u64);
             let e = cteDelete(bufferSlot, 1u64);
@@ -848,15 +864,15 @@ impl TaskHandle {
                 return e;
             }
             target_tcb.set_ipc_buffer(bufferAddr);
-            Arch_setTCBIPCBuffer(target_ptr, bufferAddr);
+            // Arch_setTCBIPCBuffer(target_ptr, bufferAddr);    //  not appear in source code?  TODO
             if bufferSrcSlot as u64 != 0u64
                 && sameObjectAs(bufferCap, (*bufferSrcSlot).cap) != 0u64
                 && sameObjectAs(tCap, (*slot).cap) != 0u64
             {
                 cteInsert(bufferCap, bufferSrcSlot, bufferSlot);
             }
-            if target == get_current_task_handle!() {
-                rescheduleRequired();
+            if self == &get_current_task_handle!() {
+                // rescheduleRequired();
             }
         }
         0u64
@@ -901,7 +917,8 @@ impl TaskHandle {
         }
         Arch_postModifyRegisters(dest_ptr);
         if dest_ptr == node_state!(ksCurThread) {
-            rescheduleRequired();
+            // rescheduleRequired();
+            // TODO reschedule
         }
         Arch_performTransfer(transferArch, src_ptr, dest_ptr)
     }

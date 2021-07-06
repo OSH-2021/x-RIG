@@ -193,8 +193,8 @@ pub struct tcb_t {
     pub tcbMCP: types::prio_t,                      //  Max controlled priority
     pub tcbPriority: types::prio_t,
     pub tcbTimeSlice: word_t,
-    pub tcbFaultHandler: types::cptr_t,
-    pub tcbIPCBuffer: word_t,
+    pub tcbFaultHandler: types::cptr_t,             //  Capability pointer to thread fault handler, 1 word
+    pub tcbIPCBuffer: word_t,                       //  IPC buffer虚地址
 
     pub tcbSchedNext: *mut tcb_t,
     pub tcbSchedPrev: *mut tcb_t,

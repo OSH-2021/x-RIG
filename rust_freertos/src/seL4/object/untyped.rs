@@ -16,6 +16,7 @@ use super::super::structures::*;
 use super::super::syscall::*;
 use super::super::thread::*;
 use super::super::types::*;
+use crate::*;
 
 extern "C" {
     static mut current_syscall_error: syscall_error_t;
