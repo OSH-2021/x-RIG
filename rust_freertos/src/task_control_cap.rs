@@ -12,14 +12,12 @@ use std::mem;
 use std::sync::{Arc, RwLock, Weak};
 use crate::seL4::object::arch_structures::*;
 use crate::CNode::*;
-use crate::type_eq::*;
+use crate::types::*;
+use crate::task_global::*;
 
-pub type tcb_t = task_control_block;
 pub const L2_BITMAP_SIZE: usize = (256 + (1 << 6) - 1) / (1 << 6);
 extern "C" {
-    // TODO change to current TCB in task_global
-    static mut ksCurThread: *mut tcb_t;     //  ->  CURRENT_TCB
-    static mut ksReadyQueues: [tcb_queue_t; 256];   //  -> READY_TASK_LISTS
+    static mut ksReadyQueues: [tcb_queue_t; 256];   // TODO -> READY_TASK_LISTS
     static mut ksReadyQueuesL1Bitmap: [u64; 1];
     static mut ksReadyQueuesL2Bitmap: [[u64; L2_BITMAP_SIZE]; 1];
     static mut current_extra_caps: extra_caps_t;
@@ -35,6 +33,10 @@ extern "C" {
     pub fn Arch_performTransfer(arch: u64, tcb_src: *mut tcb_t, dest: *mut tcb_t) -> u64;
     // fn kprintf(format: *const u8, ...) -> u64;
 }
+// TODO how to convert??
+// indeed we should have a lock on it
+static mut current_tcb_handle : TaskHandle = get_current_task_handle!();
+static mut ksCurThread: *mut tcb_t = get_tcb_from_handle_mut!(current_tcb_handle);  //  TODO->  CURRENT_TCB
 
 
 /* Task states returned by eTaskGetState. */
@@ -116,7 +118,7 @@ pub struct task_control_block {
     // time_slice : UBaseType, // freertos应该也有内置的时间片吧 在哪？
     fault_handler : UBaseType, // used only once in qwq
     ipc_buffer : UBaseType, // 总觉得这个和stream buffer很像
-    registers : [word_t; n_contextRegisters]
+    pub registers : [word_t; n_contextRegisters]
 }
 
 pub unsafe extern "C" fn suspend(target: *mut tcb_t) {
@@ -936,7 +938,7 @@ impl TaskHandle {
             }
             if ipcBuffer as u64 != 0u64 && i < n as usize && i < n_frameRegisters {
                 while i < n as usize && i < n_frameRegisters {
-                    *ipcBuffer.offset((i + 1) as isize) = getRegister(tcb_src, frameRegisters[i]);
+                    *ipcBuffer.offset((i + 1) as isize) = getRegister(src_ptr, frameRegisters[i]);
                     i += 1;
                 }
             }
