@@ -121,28 +121,28 @@ pub struct task_control_block {
     pub registers : [word_t; n_contextRegisters]
 }
 
-pub unsafe extern "C" fn suspend(target: *mut tcb_t) {
-    cancelIPC(target);
-    setThreadState(target, TaskState::InActive);
-    tcbSchedDequeue(target);
-}
+// pub unsafe extern "C" fn suspend(target: *mut tcb_t) {
+//     cancelIPC(target);
+//     setThreadState(target, TaskState::InActive);
+//     tcbSchedDequeue(target);
+// }
 
-#[no_mangle]
-pub unsafe extern "C" fn restart(target: *mut tcb_t) {
-    if isBlocked(target) != 0 {
-        cancelIPC(target);
-        setupReplyMaster(target);
-        setThreadState(target, _thread_state::Restart);
-        tcbSchedEnqueue(target);
-        possibleSwitchTo(target);
-    }
-}
+// #[no_mangle]
+// pub unsafe extern "C" fn restart(target: *mut tcb_t) {
+//     if isBlocked(target) != 0 {
+//         cancelIPC(target);
+//         setupReplyMaster(target);
+//         setThreadState(target, _thread_state::Restart);
+//         tcbSchedEnqueue(target);
+//         possibleSwitchTo(target);
+//     }
+// }
 // TODO
-pub unsafe extern "C" fn setThreadState(tptr: *mut tcb_t, ts : TaskState) {
-    let tcbState = &mut (*tptr).task_state;
-    thread_state_ptr_set_tsType(tcbState, ts); // sure to use sel4's function directly?
-    scheduleTCB(tptr);
-}
+// pub unsafe extern "C" fn setThreadState(tptr: *mut tcb_t, ts : TaskState) {
+//     let tcbState = &mut (*tptr).task_state;
+//     thread_state_ptr_set_tsType(tcbState, ts); // sure to use sel4's function directly?
+//     scheduleTCB(tptr);
+// }
 
 pub type TCB = task_control_block;
 pub type Task = task_control_block;
@@ -460,6 +460,10 @@ impl task_control_block {
 
     pub fn set_ipc_buffer(&mut self, bufferAddr: u64) {
         self.ipc_buffer = bufferAddr;
+    }
+
+    pub fn set_state(&mut self, state: TaskState) {
+        self.task_state = state;
     }
 }
 
@@ -792,6 +796,22 @@ impl TaskHandle {
         get_tcb_from_handle_mut!(self).set_base_priority(new_val)
     }
 
+    pub fn set_fault_handler(&self, faulteq: u64) {
+        get_tcb_from_handle_mut!(self).set_fault_handler(faulteq);
+    }
+
+    pub fn set_MCPriority(&self, mcp: prio_t) {
+        get_tcb_from_handle_mut!(self).set_MCPriority(mcp);
+    }
+
+    pub fn set_ipc_buffer(&self, bufferAddr: u64) {
+        get_tcb_from_handle_mut!(self).set_ipc_buffer(bufferAddr);
+    }
+
+    pub fn set_state(&self, state: TaskState) {
+        get_tcb_from_handle_mut!(self).set_state(state);
+    }
+
     /// # Description:
     ///    set TaskHandle's slot, fault handler, mcp, priority, CTable, VTable, IPC buffer
     /// * Implemented by: 
@@ -878,24 +898,26 @@ impl TaskHandle {
         0u64
     }
     // original name invokeTCB_CopyRegisters (add From to clarify)
-    pub unsafe extern "C" fn invokeTCB_CopyRegistersFrom(
-        &mut self, // original name dest
-        src: &Self,
+    pub fn invokeTCB_CopyRegistersFrom(
+        dest: &mut Self,
+        src: &mut Self,
         suspendSource: bool,
         resumeTarget: bool,
         transferFrame: bool,
         transferInteger: bool,
         transferArch: u64,
     ) -> u64 {
-        let dest_tcb: &mut TCB = get_tcb_from_handle_mut!(self);
+        let dest_tcb: &mut TCB = get_tcb_from_handle_mut!(dest);
         let src_tcb: &mut TCB = get_tcb_from_handle_mut!(src);
         let dest_ptr = dest_tcb as *mut TCB;
         let src_ptr = src_tcb as *mut TCB;
         if suspendSource != false {
-            suspend(dest_ptr);
+            //  suspend(dest_ptr);  //  originally
+            suspend_task(dest);
         }
         if resumeTarget != false {
-            restart(dest_ptr);
+            // restart(dest_ptr);
+            resume_task(dest)
         }
         if transferFrame != false {
             let mut i: usize = 0;
@@ -924,17 +946,18 @@ impl TaskHandle {
     }
 
     pub unsafe extern "C" fn invokeTCB_ReadRegisters(
-        &mut self,
+        src: &mut Self,
         suspendSource: bool,
         n: u64,
         arch: u64,
         call: bool,
     ) -> u64 {
-        let src_tcb: &mut TCB = get_tcb_from_handle_mut!(self);
+        let src_tcb: &mut TCB = get_tcb_from_handle_mut!(src);
         let src_ptr = src_tcb as *mut TCB;
         let thread = node_state!(ksCurThread);
         if suspendSource != false { // 0u64 as false
-            suspend(src_tcb);
+            // suspend(src_tcb);
+            suspend_task(src);
         }
         let e = Arch_performTransfer(arch, src_tcb, node_state!(ksCurThread));
         if e != 0u64 {
@@ -953,7 +976,7 @@ impl TaskHandle {
             }
             if ipcBuffer as u64 != 0u64 && i < n as usize && i < n_frameRegisters {
                 while i < n as usize && i < n_frameRegisters {
-                    *ipcBuffer.offset((i + 1) as isize) = getRegister(tcb_src, frameRegisters[i]);
+                    *ipcBuffer.offset((i + 1) as isize) = getRegister(src_ptr, frameRegisters[i]);
                     i += 1;
                 }
             }
@@ -983,18 +1006,19 @@ impl TaskHandle {
                 wordFromMessageInfo(seL4_MessageInfo_new(0, 0, 0, (i + j) as u64)),
             );
         }
-        setThreadState(thread, TaskState::running);
+        // setThreadState(thread, TaskState::running);
+        (*thread).set_state(TaskState::running);
         0u64
     }
 
     pub unsafe extern "C" fn invokeTCB_WriteRegisters(
-        &mut self,
+        dest: &mut Self,
         resumeTarget: bool,
         mut n: u64,
         arch: u64,
         buffer: *mut u64
     ) -> u64 {
-        let dest_tcb: &mut TCB = get_tcb_from_handle_mut!(self);
+        let dest_tcb: &mut TCB = get_tcb_from_handle_mut!(dest);
         let dest_ptr = dest_tcb as *mut TCB;
 
         let e = Arch_performTransfer(arch, node_state!(ksCurThread), dest_ptr);
@@ -1004,7 +1028,7 @@ impl TaskHandle {
         if n as usize > n_frameRegisters + n_gpRegisters {
             n = (n_frameRegisters + n_gpRegisters) as u64;
         }
-        let archInfo = Arch_getSanitiseRegisterInfo(dest);
+        let archInfo: bool = false; //  Arch_getSanitiseRegisterInfo(dest); //  originally
         let mut i: usize = 0;
         while i < n_frameRegisters && i < n as usize {
             setRegister(
@@ -1035,10 +1059,12 @@ impl TaskHandle {
         setNextPC(dest_ptr, pc);
         Arch_postModifyRegisters(dest_ptr);
         if resumeTarget != false {
-            restart(dest_ptr);
+            // restart(dest_ptr);
+            resume_task(dest);
         }
         if dest_ptr == node_state!(ksCurThread) {
-            rescheduleRequired();
+            // rescheduleRequired();
+            // TODO reschedule
         }
         0u64
     }
@@ -1049,13 +1075,68 @@ impl TaskHandle {
         ntfnPtr: *mut notification_t
     ) -> u64 {
         if ntfnPtr as u64 != 0u64 {
-            bindNotification(tcb, ntfnPtr);
+            // bindNotification(tcb, ntfnPtr);
         } else {
-            unbindNotification(tcb);
+            // unbindNotification(tcb);
         }
         0u64
     }
-    pub unsafe extern "C" fn setMRs_syscall_error(
+}
+    pub fn setMRs_lookup_failure(
+        receiver: *mut tcb_t,
+        receiveIPCBuffer: *mut u64,
+        luf: lookup_fault_t,
+        offset: u32,
+    ) -> u32 {
+        let lufType = lookup_fault_get_lufType(luf);
+        let i = setMR(receiver, receiveIPCBuffer, offset, lufType + 1);
+        if lufType == lookup_fault_tag_t::lookup_fault_invalid_root as u64 {
+            return i;
+        } else if lufType == lookup_fault_tag_t::lookup_fault_missing_capability as u64 {
+            return setMR(
+                receiver,
+                receiveIPCBuffer,
+                offset + 1,
+                lookup_fault_missing_capability_get_bitsLeft(luf),
+            );
+        } else if lufType == lookup_fault_tag_t::lookup_fault_depth_mismatch as u64 {
+            setMR(
+                receiver,
+                receiveIPCBuffer,
+                offset + 1,
+                lookup_fault_depth_mismatch_get_bitsLeft(luf),
+            );
+            return setMR(
+                receiver,
+                receiveIPCBuffer,
+                offset + 2,
+                lookup_fault_depth_mismatch_get_bitsFound(luf),
+            );
+        } else if lufType == lookup_fault_tag_t::lookup_fault_guard_mismatch as u64 {
+            setMR(
+                receiver,
+                receiveIPCBuffer,
+                offset + 1,
+                lookup_fault_guard_mismatch_get_bitsLeft(luf),
+            );
+            setMR(
+                receiver,
+                receiveIPCBuffer,
+                offset + 2,
+                lookup_fault_guard_mismatch_get_bitsFound(luf),
+            );
+            return setMR(
+                receiver,
+                receiveIPCBuffer,
+                offset + 3,
+                lookup_fault_guard_mismatch_get_bitsFound(luf),
+            );
+        }
+        panic!("Invalid lookup failure");
+    }
+
+
+    pub unsafe fn setMRs_syscall_error(
         thread: *mut tcb_t,
         receiveIPCBuffer: *mut u64,
     ) -> u64 {
@@ -1113,7 +1194,7 @@ impl TaskHandle {
         }
         panic!("Invalid syscall error");
     }
-}
+
 
 #[macro_export]
 macro_rules! get_tcb_from_handle {
@@ -1400,7 +1481,7 @@ pub fn task_delete(task_to_delete: Option<TaskHandle>) {
 /// # Return:
 ///
 #[cfg(feature = "INCLUDE_vTaskSuspend")]
-pub fn suspend_task(task_to_suspend: TaskHandle) {
+pub fn suspend_task(task_to_suspend: &mut TaskHandle) { //  is &mut added OK? TODO to be explained
     trace!("suspend_task called!");
     /*
      * origin: If null is passed in here then it is the running task that is
@@ -1441,7 +1522,7 @@ pub fn suspend_task(task_to_suspend: TaskHandle) {
         mtCOVERAGE_TEST_MARKER!();
     }
 
-    if task_to_suspend == get_current_task_handle!() {
+    if task_to_suspend == get_current_task_handle_mut!() {  //  Does &mut equal really mean task to suspend is current task?
         if get_scheduler_running!() {
             /* The current task has just been suspended. */
             assert!(get_scheduler_suspended!() == 0);
@@ -1513,11 +1594,11 @@ pub fn task_is_tasksuspended(xtask: &TaskHandle) -> bool {
 /// # Return:
 ///
 #[cfg(feature = "INCLUDE_vTaskSuspend")]
-pub fn resume_task(task_to_resume: TaskHandle) {
+pub fn resume_task(task_to_resume: &mut TaskHandle) {   //  does &mut OK? TODO to be explained
     trace!("resume task called!");
     let mut unwrapped_tcb = get_tcb_from_handle!(task_to_resume);
 
-    if task_to_resume != get_current_task_handle!() {
+    if task_to_resume != get_current_task_handle_mut!() {   //  TODO &mut OK? to be explained
         taskENTER_CRITICAL!();
         {
             if task_is_tasksuspended(&task_to_resume) {
@@ -1545,5 +1626,25 @@ pub fn resume_task(task_to_resume: TaskHandle) {
         taskEXIT_CRITICAL!();
     } else {
         mtCOVERAGE_TEST_MARKER!();
+    }
+}
+
+#[inline]
+pub unsafe fn setMR(
+    receiver: *mut tcb_t,
+    receiveIPCBuffer: *mut u64,
+    offset: u32,
+    reg: u64,
+) -> u32 {
+    if offset >= n_msgRegisters as u32 {
+        if receiveIPCBuffer as u64 != 0u64 {
+            *receiveIPCBuffer.offset((offset + 1) as isize) = reg;
+            return offset + 1;
+        } else {
+            return n_msgRegisters as u32;
+        }
+    } else {
+        setRegister(receiver, msgRegisters[offset as usize], reg);
+        return offset + 1;
     }
 }

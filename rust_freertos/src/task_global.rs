@@ -332,6 +332,18 @@ macro_rules! get_current_task_handle {
 }
 
 #[macro_export]
+macro_rules! get_current_task_handle_mut {
+    () => {
+        &mut crate::task_global::CURRENT_TCB
+            .read()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .clone()
+    };
+}
+
+#[macro_export]
 macro_rules! set_current_task_handle {
     ($cloned_new_task: expr) => {
         trace!("CURRENT_TCB changed!");
