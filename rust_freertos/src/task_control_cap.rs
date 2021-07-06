@@ -13,13 +13,12 @@ use std::sync::{Arc, RwLock, Weak};
 use crate::arch_structures_TCB::*;
 use crate::CNode::*;
 use crate::types::*;
+use crate::task_global::*;
 use crate::task_ipc::*;
 
 pub const L2_BITMAP_SIZE: usize = (256 + (1 << 6) - 1) / (1 << 6);
 extern "C" {
-    // TODO change to current TCB in task_global
-    static mut ksCurThread: *mut tcb_t;     //  ->  CURRENT_TCB
-    static mut ksReadyQueues: [tcb_queue_t; 256];   //  -> READY_TASK_LISTS
+    static mut ksReadyQueues: [tcb_queue_t; 256];   // TODO -> READY_TASK_LISTS
     static mut ksReadyQueuesL1Bitmap: [u64; 1];
     static mut ksReadyQueuesL2Bitmap: [[u64; L2_BITMAP_SIZE]; 1];
     static mut current_extra_caps: extra_caps_t;
@@ -36,6 +35,10 @@ extern "C" {
     pub fn sameObjectAs(cap_a: cap_t, cap_b: cap_t) -> bool_t;
     // fn kprintf(format: *const u8, ...) -> u64;
 }
+// TODO how to convert??
+// indeed we should have a lock on it
+static mut current_tcb_handle : TaskHandle = get_current_task_handle!();
+static mut ksCurThread: *mut tcb_t = get_tcb_from_handle_mut!(current_tcb_handle);  //  TODO->  CURRENT_TCB
 
 
 /* Task states returned by eTaskGetState. */
