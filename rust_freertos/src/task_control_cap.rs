@@ -830,12 +830,12 @@ impl TaskHandle {
 
     /// # Description:
     ///    set TaskHandle's slot, fault handler, mcp, priority, CTable, VTable, IPC buffer
-    /// * Implemented by: 
+    /// * Implemented by:
     ///    Lslightly
     /// # Arguments:
-    ///    
+    ///
     /// # Return:
-    ///    
+    ///
     pub unsafe fn invokeTCB_ThreadControl(
         &self,
         slot: Arc<cte_t>,
