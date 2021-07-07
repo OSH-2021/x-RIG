@@ -47,8 +47,8 @@ default = [
  	"INCLUDE_vTaskSuspend",
 	"INCLUDE_vTaskDelete",
 	"INCLUDE_uxTaskPriorityGet",
-	"INCLUDE_vTaskPrioritySet",
-	"configUSE_CAPS"
+	"INCLUDE_vTaskPrioritySet"
+ 	"configUSE_CAPS"
 ]
 # Configuations starting with "INCLUDE_"
 # For more information, read Chapter 3 of the book.

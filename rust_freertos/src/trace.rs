@@ -477,3 +477,33 @@ macro_rules! mtCOVERAGE_TEST_DELAY {
 macro_rules! traceSTREAM_BUFFER_RESET {
     () => {};
 }
+
+#[macro_export]
+macro_rules! traceSTREAM_BUFFER_SEND {
+    ($xStreamBuffer:expr, $xReturn:expr) => { 
+    };
+}
+
+#[macro_export]
+macro_rules! traceSTREAM_BUFFER_SEND_FAILED {
+    ($xStreamBuffer:expr) => {};
+}
+
+
+#[macro_export]
+macro_rules! traceBLOCKING_ON_STREAM_BUFFER_RECEIVE {
+    ($xStreamBuffer:expr) => {};
+}
+
+
+#[macro_export]
+macro_rules! traceSTREAM_BUFFER_RECEIVE {
+    ($xStreamBuffer:expr, $xReturn:expr) => { 
+    };
+}
+
+
+#[macro_export]
+macro_rules! traceSTREAM_BUFFER_RECEIVE_FAILED {
+    ($xStreamBuffer:expr) => {};
+}
