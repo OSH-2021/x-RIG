@@ -1,13 +1,15 @@
-use crate::port::*;
+use lazy_static::__Deref;
+
+use crate::config::*;
 use crate::kernel::*;
+use crate::list::list_remove;
+use crate::port::*;
 use crate::task_control::*;
+use crate::trace::*;
+use crate::*;
 use std::fmt;
 use std::ops::DerefMut;
-use crate::trace::*;
-use crate::list::list_remove;
-use crate::config::*;
-use std::sync::{Arc, RwLock, Weak};
-use crate::*;
+use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard, Weak};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum StreamBufferError {
@@ -18,57 +20,69 @@ pub enum StreamBufferError {
 impl fmt::Display for StreamBufferError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            StreamBufferError::StreamBufferTriggerLevelOverflow => write!(f, "TriggerLevelOverflow"),
+            StreamBufferError::StreamBufferTriggerLevelOverflow => {
+                write!(f, "TriggerLevelOverflow")
+            }
             StreamBufferError::StreamBufferFull => write!(f, "StreamBufferFull"),
             StreamBufferError::StreamBufferEmpty => write!(f, "StreamBufferEmpty"),
         }
     }
 }
 
-pub const sbFLAGS_IS_MESSAGE_BUFFER : u8 = 1;
-pub const sbFLAGS_IS_STATICALLY_ALLOCATED : u8 = 2;
+pub const sbFLAGS_IS_MESSAGE_BUFFER: u8 = 1;
+pub const sbFLAGS_IS_STATICALLY_ALLOCATED: u8 = 2;
 /// *Descrpition:
 /// Definition of  Stream Buffer
-/// 
+///
 /// The source code : stream_buffer.c  
 ///
 /// *Implemented by Chen Wenjie
-pub struct StreamBufferDef{
-    xTail:UBaseType,
-    xHead:UBaseType,
-    xLength:UBaseType,
-    xTriggerLevelBytes:UBaseType,
-    xTaskWaitingToReceive:Option<TaskHandle>,
-    xTaskWaitingToSend:Option<TaskHandle>,
-    pucBuffer:u8,
-    ucFlag:u8,
+#[derive(Clone)]
+pub struct StreamBufferDef {
+    xTail: UBaseType,
+    xHead: UBaseType,
+    xLength: UBaseType,
+    xTriggerLevelBytes: UBaseType,
+    xTaskWaitingToReceive: Option<TaskHandle>,
+    xTaskWaitingToSend: Option<TaskHandle>,
+    pucBuffer: u8,
+    ucFlag: u8,
 
-    uxStreamBufferNumber:UBaseType
+    uxStreamBufferNumber: UBaseType,
 }
 
-
-impl StreamBufferDef{
+impl StreamBufferDef {
+    pub fn new() -> Self {
+        StreamBufferDef {
+            xTail: 0,
+            xHead: 0,
+            xLength: 0,
+            xTriggerLevelBytes: 1,
+            xTaskWaitingToReceive: None,
+            xTaskWaitingToSend: None,
+            pucBuffer: 0,
+            ucFlag: 0,
+            uxStreamBufferNumber: 0,
+        }
+    }
 
     /// get the number of bytes in buffer
     /// * Implemented by Chen Wenjie
     /// * Arguments
     ///     self             : The handle of the stream buffer to be read.
     /// * Source code : stream_buffer.c 1229-1247
-    /// 
+    ///
     /// * Return
     ///     the number
-    pub fn BytesInBuffer(&self)->UBaseType{
-        let mut Count : UBaseType;
+    pub fn BytesInBuffer(&self) -> UBaseType {
+        let mut Count: UBaseType;
 
         Count = self.xLength + self.xHead - self.xTail;
 
-        if Count >= self.xLength{
+        if Count >= self.xLength {
             Count -= self.xLength;
-        }
-        else{
-
+        } else {
             mtCOVERAGE_TEST_MARKER!();
-
         }
 
         Count
@@ -88,24 +102,26 @@ impl StreamBufferDef{
     ///                           are actually available.  Setting a trigger level of 0 will result in a trigger level of 1 being used.  It is not valid to specify a trigger level
     ///                           that is greater than the buffer size.     
     /// * Source code : stream_buffer.c 1250-1274
-    /// 
+    ///
     /// * Return
     ///     
-    pub fn InitialiseNewStreamBuffer (&mut self, pucBuffer : u8, BufferSizeBytes : UBaseType , TriggerLevelBytes : UBaseType ,ucFlag : u8 ){
-
+    pub fn InitialiseNewStreamBuffer(
+        &mut self,
+        pucBuffer: u8,
+        BufferSizeBytes: UBaseType,
+        TriggerLevelBytes: UBaseType,
+        ucFlag: u8,
+    ) {
         self.pucBuffer = pucBuffer;
         self.ucFlag = ucFlag;
         self.xTriggerLevelBytes = TriggerLevelBytes;
         self.xLength = BufferSizeBytes;
-        
     }
-
-
 }
 
 pub struct StreamBufferHandle(Arc<RwLock<StreamBufferDef>>);
 
-impl From<Weak<RwLock<StreamBufferDef>>> for StreamBufferHandle{
+impl From<Weak<RwLock<StreamBufferDef>>> for StreamBufferHandle {
     fn from(weak_link: Weak<RwLock<StreamBufferDef>>) -> Self {
         StreamBufferHandle(
             weak_link
@@ -121,28 +137,53 @@ impl From<StreamBufferHandle> for Weak<RwLock<StreamBufferDef>> {
     }
 }
 
-    /// Construct a StreamBufferHandle with a StreamBuffer. */
-    /// * Implemented by: Chen Wenjie.
-    /// * C implementation:
-    ///
-    /// # Arguments
-    /// * `stream_buffer`: The StreamBuffer that we want to get StreamBufferHandle from.
-    ///
-    /// # Return
-    ///
-    /// The created StreamBufferHandle.
-    pub fn from(stream_buffer: StreamBufferDef) -> StreamBufferHandle {
-        // TODO: Implement From.
-        StreamBufferHandle(Arc::new(RwLock::new(stream_buffer)))
-    }
+/// Construct a StreamBufferHandle with a StreamBuffer. */
+/// * Implemented by: Chen Wenjie.
+/// * C implementation:
+///
+/// # Arguments
+/// * `stream_buffer`: The StreamBuffer that we want to get StreamBufferHandle from.
+///
+/// # Return
+///
+/// The created StreamBufferHandle.
+pub fn from(stream_buffer: StreamBufferDef) -> StreamBufferHandle {
+    // TODO: Implement From.
+    StreamBufferHandle(Arc::new(RwLock::new(stream_buffer)))
+}
 
-
-impl StreamBufferHandle{
+impl StreamBufferHandle {
     pub fn from_arc(arc: Arc<RwLock<StreamBufferDef>>) -> Self {
         StreamBufferHandle(arc)
     }
 
+    pub fn get_buffer(&self) -> u8 {
+        get_streambuffer_from_handle!(self).pucBuffer
+    }
 
+    pub fn get_length(&self) -> UBaseType {
+        get_streambuffer_from_handle!(self).xLength
+    }
+
+    pub fn get_triggerlevelbytes(&self) -> UBaseType {
+        get_streambuffer_from_handle!(self).xTriggerLevelBytes
+    }
+
+    pub fn get_flag(&self) -> u8 {
+        get_streambuffer_from_handle!(self).ucFlag
+    }
+
+    pub fn get_streambuffernumber(&self) -> UBaseType {
+        get_streambuffer_from_handle!(self).uxStreamBufferNumber
+    }
+
+    // pub fn get_tasktoreceive_notifystate(&self)->Option<TaskHandle>{
+    //     get_streambuffer_from_handle!(self).xTaskWaitingToReceive
+    // }
+
+    // pub fn get_tasktosend(&self)-> TaskHandle{
+    //     get_streambuffer_from_handle!(self).xTaskWaitingToSend.unwrap()
+    // }
 
     /// Reset a stream buffer
     /// * Implemented by Chen Wenjie
@@ -151,27 +192,28 @@ impl StreamBufferHandle{
     ///
     /// * The source code : stream_buffer.c  line416 - 462
     /// * Return
-    /// 
-    pub fn StreamBufferReset(&mut self) -> Result<(), StreamBufferError>{
-    
-        let mut unwarp_streambuffer = get_streambuffer_from_handle!(self);
+    ///
+    pub fn StreamBufferReset(&mut self) -> Result<(), StreamBufferError> {
+        let mut unwarp_streambuffer = get_streambuffer_from_handle_mut!(self);
 
-        let mut uxStreamBufferNumber:UBaseType;
-
-        let mut uxStreamBufferNumber = unwarp_streambuffer.uxStreamBufferNumber;
+        let Buffer = self.get_buffer();
+        let Length = self.get_length();
+        let TriggerLevelBytes = self.get_triggerlevelbytes();
+        let Flag = self.get_flag();
+        let mut uxStreamBufferNumber = self.get_streambuffernumber();
 
         taskENTER_CRITICAL!();
 
-        if (!unwarp_streambuffer.xTaskWaitingToReceive.is_none()) &&(! unwarp_streambuffer.xTaskWaitingToSend.is_none()) {
-            unwarp_streambuffer.InitialiseNewStreamBuffer(unwarp_streambuffer.pucBuffer, unwarp_streambuffer.xLength, unwarp_streambuffer.xTriggerLevelBytes, unwarp_streambuffer.ucFlag);
-            
-            
+        if (!unwarp_streambuffer.xTaskWaitingToReceive.is_none())
+            && (!unwarp_streambuffer.xTaskWaitingToSend.is_none())
+        {
+            unwarp_streambuffer.InitialiseNewStreamBuffer(Buffer, Length, TriggerLevelBytes, Flag);
+
             unwarp_streambuffer.uxStreamBufferNumber = uxStreamBufferNumber;
             traceSTREAM_BUFFER_RESET!();
         }
         taskEXIT_CRITICAL!();
         Ok(())
-
     }
 
     /// Set the trigger level of a stream buffer
@@ -182,10 +224,13 @@ impl StreamBufferHandle{
     /// * The source code    : stream_buffer.c  line465 - 492    
     /// * Return
     ///     
-    pub fn StreamBufferSetTriggerLevel(&mut self, xTriggerLevel: UBaseType) -> Result<(), StreamBufferError>{
+    pub fn StreamBufferSetTriggerLevel(
+        &mut self,
+        xTriggerLevel: UBaseType,
+    ) -> Result<(), StreamBufferError> {
         let mut unwarp_streambuffer = get_streambuffer_from_handle_mut!(self);
 
-        if xTriggerLevel ==  0 {
+        if xTriggerLevel == 0 {
             xTriggerLevel == 1;
         }
 
@@ -193,59 +238,38 @@ impl StreamBufferHandle{
             unwarp_streambuffer.xTriggerLevelBytes = xTriggerLevel;
             return Ok(());
         }
-        
+
         Err(StreamBufferError::StreamBufferTriggerLevelOverflow)
     }
 
-
-
-
-
-
-
-
     /// Queries a stream buffer to see how much free space it contains, which is equal to the amount of data that
     /// can be sent to the stream buffer before it is full.
-    /// 
+    ///
     /// * Implemented by Chen Wenjie
     /// * Arguments
     ///     self             : The handle of the stream buffer being queried.
     ///     xTriggerLevel    : The new trigger level for the stream buffer.
     /// * Return
     ///     The number of bytes that can be read from the stream buffer before the stream buffer would be full.
-    pub fn StreamBufferBytesAvailable(&mut self) -> UBaseType{
-
+    pub fn StreamBufferBytesAvailable(&mut self) -> UBaseType {
         get_streambuffer_from_handle!(self).BytesInBuffer()
-
     }
 
-
-
-    pub fn StreamBufferSpacesAvailable(&mut self) -> UBaseType{
-        
+    pub fn StreamBufferSpacesAvailable(&self) -> UBaseType {
         let mut unwarp_streambuffer = get_streambuffer_from_handle_mut!(self);
-        
-        let mut xSpace : UBaseType;
 
+        let mut xSpace: UBaseType;
 
         xSpace = unwarp_streambuffer.xLength + unwarp_streambuffer.xLength;
         xSpace -= (unwarp_streambuffer.xHead + 1 as UBaseType);
 
         if xSpace >= unwarp_streambuffer.xLength {
-
             xSpace -= unwarp_streambuffer.xLength;
-        
-        }
-        else {
-
+        } else {
             mtCOVERAGE_TEST_MARKER!();
-
         }
         xSpace
     }
-
-
-    
 
     /// Create a StreamBuffer in static allocation
     /// * Implemented by Chen Wenjie
@@ -260,36 +284,36 @@ impl StreamBufferHandle{
     ///                           that is greater than the buffer size.    
     /// * Return
     ///     The created stream buffer handle
-    pub fn StreamBufferGenericCreate (xBufferSizeBytes:UBaseType, xTriggerLevelBytes:UBaseType, xIsMessageBuffer:bool, pucStreamBufferStorageArea:u8) -> Self{
-
-        let mut ucFlag:u8;
-        let mut streambuffer : StreamBufferDef;
-        let mut handle : StreamBufferHandle;
+    pub fn StreamBufferGenericCreate(
+        xBufferSizeBytes: UBaseType,
+        xTriggerLevelBytes: UBaseType,
+        xIsMessageBuffer: bool,
+        pucStreamBufferStorageArea: u8,
+    ) -> Self {
+        let mut ucFlag: u8;
+        let mut streambuffer = StreamBufferDef::new();
         if xIsMessageBuffer == true {
-
             ucFlag = sbFLAGS_IS_MESSAGE_BUFFER;
-
-        }
-        else{
-
+        } else {
             ucFlag = 0;
         }
 
-        if xTriggerLevelBytes ==  0 {
+        if xTriggerLevelBytes == 0 {
             xTriggerLevelBytes == 1;
         }
 
-        streambuffer.InitialiseNewStreamBuffer(pucStreamBufferStorageArea, xBufferSizeBytes, xTriggerLevelBytes, ucFlag);
+        streambuffer.InitialiseNewStreamBuffer(
+            pucStreamBufferStorageArea,
+            xBufferSizeBytes,
+            xTriggerLevelBytes,
+            ucFlag,
+        );
 
         from(streambuffer)
-
     }
 
-    
-    
-    
     /// Write to a stream buffer from a task.
-    /// 
+    ///
     /// * Implemented by Chen Wenjie
     /// * Arguments
     ///     self             : The handle of the stream buffer to which a stream is being sent.
@@ -301,93 +325,67 @@ impl StreamBufferHandle{
     ///         into a time specified in ticks.  Setting xTicksToWait to portMAX_DELAY will cause the task to wait indefinitely (without timing out), provided
     ///         INCLUDE_vTaskSuspend is set to 1 in FreeRTOSConfig.h.  If a task times out before it can write all xDataLengthBytes into the buffer it will still write
     ///         as many bytes as possible.  A task does not use any CPU time when it is in the blocked state.
-    /// 
+    ///
     /// * The Resource Code : stream_buffer.c 539-668
     /// * Return
     ///     The number of bytes written to the stream buffer.  If a task times out before it can write all xDataLengthBytes into the buffer it will still
     ///     write as many bytes as possible.
-    pub fn StreamBufferSend(&mut self, TxData: u8, DataLengthBytes : UBaseType, TicksToWait : TickType) ->UBaseType{
+    pub fn StreamBufferSend(
+        &mut self,
+        TxData: u8,
+        DataLengthBytes: UBaseType,
+        mut TicksToWait: TickType,
+    ) -> UBaseType {
+        let mut unwarp_streambuffer = get_streambuffer_from_handle_mut!(self);
 
-        let unwarp_streambuffer = get_streambuffer_from_handle_mut!(self);
-
-        let mut Return : UBaseType = 0;
-        let mut Space : UBaseType = 0;
-        let mut RequiredSpace : UBaseType = DataLengthBytes;
+        let mut Return: UBaseType = 0;
+        let mut Space: UBaseType = 0;
+        let mut RequiredSpace: UBaseType = DataLengthBytes;
         let mut TimeOut: time_out = Default::default();
-        let mut MaxReportedSpace :UBaseType = 0;
-
+        let mut MaxReportedSpace: UBaseType = 0;
 
         MaxReportedSpace = unwarp_streambuffer.xLength - 1;
 
-        if (unwarp_streambuffer.ucFlag & sbFLAGS_IS_MESSAGE_BUFFER) != 0{
-
+        if (unwarp_streambuffer.ucFlag & sbFLAGS_IS_MESSAGE_BUFFER) != 0 {
             RequiredSpace += sbBYTES_TO_STORE_MESSAGE_LENGTH!();
 
-            assert!( RequiredSpace > DataLengthBytes);
+            assert!(RequiredSpace > DataLengthBytes);
 
-            if RequiredSpace > MaxReportedSpace{
-
+            if RequiredSpace > MaxReportedSpace {
                 TicksToWait = 0;
-
+            } else {
+                mtCOVERAGE_TEST_MARKER!();
             }
-            else{
-
-                mtCOVERAGE_TEST_MARKER!(); 
-
-            }
-
-        }
-        else{
-
-            if(RequiredSpace > MaxReportedSpace){
-
+        } else {
+            if (RequiredSpace > MaxReportedSpace) {
                 RequiredSpace = MaxReportedSpace;
-
+            } else {
+                mtCOVERAGE_TEST_MARKER!();
             }
-            else{
-
-                mtCOVERAGE_TEST_MARKER!(); 
-
-            }
-
-
         }
-
 
         if TicksToWait != 0 {
-
             task_set_time_out_state(&mut TimeOut);
 
-            while(task_check_for_timeout(&mut TimeOut, &mut TicksToWait) == false){
-                
+            while (task_check_for_timeout(&mut TimeOut, &mut TicksToWait) == false) {
                 taskENTER_CRITICAL!();
 
                 Space = self.StreamBufferSpacesAvailable();
 
                 if Space < RequiredSpace {
-
                     //TaskNotifyStateClear();
 
                     //assert!(unwarp_streambuffer.xTaskWaitingToSend == NULL);
-                    unwarp_streambuffer.xTaskWaitingToSend = get_current_task_handle!();
-
-
-                }
-                else{
+                    unwarp_streambuffer.xTaskWaitingToSend = Some(get_current_task_handle!());
+                } else {
                     taskEXIT_CRITICAL!();
                     break;
                 }
 
                 taskEXIT_CRITICAL!();
-
             }
-            
-
-        }
-        else{
-                
+        } else {
             mtCOVERAGE_TEST_MARKER!();
-
         }
 
         Return = self.WriteMessageToBuffer(TxData, DataLengthBytes, Space, RequiredSpace);
@@ -395,32 +393,21 @@ impl StreamBufferHandle{
         if Return > 0 {
             traceSTREAM_BUFFER_SEND!(unwarp_streambuffer, Return);
 
-            if(unwarp_streambuffer.BytesInBuffer() >= unwarp_streambuffer.xTriggerLevelBytes){
-
-                send_completed!(unwarp_streambuffer);
-
-            }
-            else{
-
+            if (unwarp_streambuffer.BytesInBuffer() >= unwarp_streambuffer.xTriggerLevelBytes) {
+                send_completed(unwarp_streambuffer.deref_mut());
+            } else {
                 mtCOVERAGE_TEST_MARKER!();
-
             }
-        }
-        else{
-
+        } else {
             mtCOVERAGE_TEST_MARKER!();
             traceSTREAM_BUFFER_SEND_FAILED!(unwarp_streambuffer);
-            
         }
 
         Return
-
     }
 
-
-
     /// Receive to a stream buffer from a task.
-    /// 
+    ///
     /// * Implemented by Chen Wenjie
     /// * Arguments
     ///     self             : The handle of the stream buffer to which a stream is being sent.
@@ -432,78 +419,63 @@ impl StreamBufferHandle{
     ///         into a time specified in ticks.  Setting xTicksToWait to portMAX_DELAY will cause the task to wait indefinitely (without timing out), provided
     ///         INCLUDE_vTaskSuspend is set to 1 in FreeRTOSConfig.h.  If a task times out before it can write all xDataLengthBytes into the buffer it will still write
     ///         as many bytes as possible.  A task does not use any CPU time when it is in the blocked state.
-    /// 
+    ///
     /// * The Resource Code : stream_buffer.c line 764-865
     /// * Return
     ///     The number of bytes written to the stream buffer.  If a task times out before it can write all xDataLengthBytes into the buffer it will still
     ///     write as many bytes as possible.
-    pub fn StreamBufferReceive(&mut self, RxData : u8, BufferLengthBytes : UBaseType, TicksToWait : TickType) -> UBaseType {
+    pub fn StreamBufferReceive(
+        &mut self,
+        mut RxData: u8,
+        BufferLengthBytes: UBaseType,
+        TicksToWait: TickType,
+    ) -> UBaseType {
         let mut unwarp_streambuffer = get_streambuffer_from_handle_mut!(self);
 
-        let mut ReceiveLength : UBaseType = 0;
-        let mut BytesAvailable : UBaseType;
-        let mut BytesToStoreMessageLength :UBaseType;
+        let mut ReceiveLength: UBaseType = 0;
+        let mut BytesAvailable: UBaseType;
+        let mut BytesToStoreMessageLength: UBaseType;
 
-        if (unwarp_streambuffer.ucFlag & sbFLAGS_IS_MESSAGE_BUFFER)!= 0{
-
+        if (unwarp_streambuffer.ucFlag & sbFLAGS_IS_MESSAGE_BUFFER) != 0 {
             BytesToStoreMessageLength = sbBYTES_TO_STORE_MESSAGE_LENGTH!();
-
-        }
-        else{
-
+        } else {
             BytesToStoreMessageLength = 0;
-
         }
-        
-        if TicksToWait != 0{
+
+        if TicksToWait != 0 {
             taskENTER_CRITICAL!();
             BytesAvailable = self.BytesInBuffer();
 
-            if BytesAvailable <= BytesToStoreMessageLength{
-
+            if BytesAvailable <= BytesToStoreMessageLength {
                 //( void ) xTaskNotifyStateClear( NULL );
 
                 // assert!(unwarp_streambuffer.xTaskWaitingToReceive == NULL);
-                unwarp_streambuffer.xTaskWaitingToReceive = get_current_task_handle!();
-
-            }
-            else{
-
+                unwarp_streambuffer.xTaskWaitingToReceive = Some(get_current_task_handle!());
+            } else {
                 mtCOVERAGE_TEST_MARKER!();
-
             }
             taskEXIT_CRITICAL!();
 
             if BytesAvailable <= BytesToStoreMessageLength {
-
                 traceBLOCKING_ON_STREAM_BUFFER_RECEIVE!(unwarp_streambuffer);
 
                 //TaskNotifyWait
                 taskENTER_CRITICAL!();
                 {
-                    let mut current_task_handle = get_current_task_handle!();
-                    let mut current_tcb = get_tcb_from_handle!(current_task_handle);
-
-                    if current_tcb.get_notify_state() == taskNOTIFICATION_RECEIVED!(){
-
-                        current_tcb.set_notify_state( taskWAITING_NOTIFICATION!());
+                    if get_current_task_handle!().get_notify_state() == taskNOTIFICATION_RECEIVED!()
+                    {
+                        get_current_task_handle!().set_notify_state(taskWAITING_NOTIFICATION!());
 
                         if TicksToWait > 0 {
                             add_current_task_to_delayed_list(TicksToWait, true);
                             traceTASK_NOTIFY_WAIT_BLOCK!();
 
                             portYIELD_WITHIN_API!();
-                        }
-                        else{
-
+                        } else {
                             mtCOVERAGE_TEST_MARKER!();
-
                         }
-                    }
-                    else{
-
+                    } else {
                         mtCOVERAGE_TEST_MARKER!();
-
                     }
                 }
                 taskEXIT_CRITICAL!();
@@ -512,58 +484,39 @@ impl StreamBufferHandle{
                 {
                     traceTASK_NOTIFY_WAIT!();
 
-                    let mut current_task_handle = get_current_task_handle!();
-                    let mut current_tcb = get_tcb_from_handle!(current_task_handle);
-
-                    current_tcb.set_notify_state(taskNOT_WAITING_NOTIFICATION!());
+                    get_current_task_handle!().set_notify_state(taskNOT_WAITING_NOTIFICATION!());
                 }
                 taskEXIT_CRITICAL!();
                 // TaskNotifyWait
-                
+
                 unwarp_streambuffer.xTaskWaitingToReceive = None;
                 BytesAvailable = self.BytesInBuffer();
-
-            }
-            else{
-
+            } else {
                 mtCOVERAGE_TEST_MARKER!();
-
             }
-        }
-        else{
-
+        } else {
             BytesAvailable = self.BytesInBuffer();
-
         }
 
-
-        if BytesAvailable > BytesToStoreMessageLength{
-            ReceiveLength = self.ReadMessageFromBuffer(&RxData, BufferLengthBytes, BytesAvailable);
+        if BytesAvailable > BytesToStoreMessageLength {
+            ReceiveLength =
+                self.ReadMessageFromBuffer(&mut RxData, BufferLengthBytes, BytesAvailable);
 
             if ReceiveLength != 0 {
-
                 receive_completed!(unwarp_streambuffer);
-
-            }
-            else{
-
+            } else {
                 mtCOVERAGE_TEST_MARKER!();
             }
-        }
-        else{
-
+        } else {
             traceSTREAM_BUFFER_RECEIVE_FAILED!(unwarp_streambuffer);
             mtCOVERAGE_TEST_MARKER!();
         }
 
-
         ReceiveLength
     }
 
-
-
     /// A function to help write a stream buffer to a task.
-    /// 
+    ///
     /// * Implemented by Chen Wenjie
     /// * Arguments
     ///     self             : The handle of the stream buffer to which a stream is being sent.
@@ -571,117 +524,100 @@ impl StreamBufferHandle{
     ///     DataLengthBytes  : The maximum number of bytes to copy from pvTxData into the stream buffer.
     ///     Space            : The available space in the stream buffer
     ///     RequireSpace     : The space needed to write all data
-    /// 
+    ///
     /// * The Resource Code : stream_buffer.c 721-760
     /// * Return
-    ///     The number of bytes written to the stream buffer. 
-    fn WriteMessageToBuffer(&mut self, TxData : u8, DataLengthBytes : UBaseType, Space : UBaseType, RequiredSpace : UBaseType) ->UBaseType{
-
+    ///     The number of bytes written to the stream buffer.
+    fn WriteMessageToBuffer(
+        &self,
+        TxData: u8,
+        mut DataLengthBytes: UBaseType,
+        Space: UBaseType,
+        RequiredSpace: UBaseType,
+    ) -> UBaseType {
         let mut unwarp_streambuffer = get_streambuffer_from_handle_mut!(self);
 
         let mut NextHead = unwarp_streambuffer.xHead;
 
         let bytesinstore = sbBYTES_TO_STORE_MESSAGE_LENGTH!();
 
-
-        if(unwarp_streambuffer.ucFlag & sbFLAGS_IS_MESSAGE_BUFFER) != 0 {
-
-            if Space >= RequiredSpace{
-                
+        if (unwarp_streambuffer.ucFlag & sbFLAGS_IS_MESSAGE_BUFFER) != 0 {
+            if Space >= RequiredSpace {
                 unwarp_streambuffer.pucBuffer = TxData;
-
-            }
-            else{
-                
+            } else {
                 DataLengthBytes = 0;
-
             }
-        } 
-        else{
-            if DataLengthBytes >= Space{
+        } else {
+            if DataLengthBytes >= Space {
                 DataLengthBytes = Space;
             }
         }
 
-        if DataLengthBytes != 0{
-
+        if DataLengthBytes != 0 {
             unwarp_streambuffer.pucBuffer = TxData;
-
         }
-        
+
         DataLengthBytes
     }
 
-
     /// A function to help read a stream buffer to a task.
-    /// 
+    ///
     /// * Implemented by Chen Wenjie
     /// * Arguments
     ///     self             : The handle of the stream buffer to which a stream is being sent.
     ///     RxData           : A pointer to the buffer that holds the bytes to be read from the stream buffer.
     ///     BufferLengthBytes: The maximum number of bytes to copy from pvTxData into the stream buffer.
     ///     BytesAvailable   : The available space in the stream buffer
-    /// 
+    ///
     /// * The Resource Code : stream_buffer.c 965-1014
     /// * Return
     ///     The number of bytes read from the stream buffer.
-    fn ReadMessageFromBuffer(&mut self, RxData : &u8, BufferLengthBytes : UBaseType, BytesAvailable : UBaseType) ->UBaseType {
-
+    fn ReadMessageFromBuffer(
+        &self,
+        RxData: &mut u8,
+        BufferLengthBytes: UBaseType,
+        mut BytesAvailable: UBaseType,
+    ) -> UBaseType {
         let mut unwarp_streambuffer = get_streambuffer_from_handle_mut!(self);
 
         let mut Count: UBaseType;
-        let mut NextMessageLength: UBaseType;
+        let mut NextMessageLength: UBaseType = 1;
         let mut TempNext: UBaseType;
         let mut NextTail: UBaseType = unwarp_streambuffer.xTail;
 
-        if (unwarp_streambuffer.ucFlag & sbFLAGS_IS_MESSAGE_BUFFER ) != 0 {
-
+        if (unwarp_streambuffer.ucFlag & sbFLAGS_IS_MESSAGE_BUFFER) != 0 {
             *RxData = unwarp_streambuffer.pucBuffer;
             unwarp_streambuffer.xTail += sbBYTES_TO_STORE_MESSAGE_LENGTH!();
 
             BytesAvailable -= sbBYTES_TO_STORE_MESSAGE_LENGTH!();
 
-            if NextMessageLength > BufferLengthBytes{
-
+            if NextMessageLength > BufferLengthBytes {
                 NextMessageLength = 0;
-
-            }
-            else{
-
+            } else {
                 mtCOVERAGE_TEST_MARKER!();
-
             }
-        }
-        else{
-
+        } else {
             NextMessageLength = BufferLengthBytes;
-        
         }
 
-        if NextMessageLength > BytesAvailable{
+        if NextMessageLength > BytesAvailable {
             Count = BytesAvailable;
-        }
-        else{
+        } else {
             Count = NextMessageLength;
         }
 
         if Count != 0 {
-
             *RxData = unwarp_streambuffer.pucBuffer;
             unwarp_streambuffer.xTail += sbBYTES_TO_STORE_MESSAGE_LENGTH!();
-
         }
 
         Count
     }
 
-    pub fn BytesInBuffer(& self)->UBaseType{
+    pub fn BytesInBuffer(&self) -> UBaseType {
         get_streambuffer_from_handle!(self).BytesInBuffer()
     }
-
 }
-
-
 
 #[macro_export]
 macro_rules! get_streambuffer_from_handle {
@@ -700,7 +636,7 @@ macro_rules! get_streambuffer_from_handle {
 macro_rules! get_streambuffer_from_handle_mut {
     ($handle: expr) => {
         match $handle.0.try_write() {
-            Ok(a) => a,
+            Ok(a) =>  a,
             Err(_) => {
                 warn!("Stream Buffer was locked, write failed");
                 panic!("Stream Buffer handle locked!");
@@ -710,105 +646,102 @@ macro_rules! get_streambuffer_from_handle_mut {
 }
 
 #[macro_export]
-macro_rules! send_completed {
-    ($stream_buffer:expr) => {
-        task_suspend_all();
-
-
-
-        if $stream_buffer.xTaskWaitingToReceive.is_some()  {            
-
-            taskENTER_CRITICAL!();
-            let mut task_to_notify = get_tcb_from_handle_mut!($stream_buffer.xTaskWaitingToReceive);
-
-            let OriginalNotifyState = task_to_notify.notified_value;
-
-            task_to_notify.notified_value = taskNOTIFICATION_RECEIVED!();
-
-            traceTASK_NOTIFY!();
-
-            if OriginalNotifyState == taskWAITING_NOTIFICATION!(){
-
-                list_remove(&task_to_notify.state_list_item);
-                
-                $stream_buffer.xTaskWaitingToReceive.unwrap().append_task_to_ready_list();
-
-                if get_current_task_handle!().get_priority() <  $stream_buffer.xTaskWaitingToReceive.unwrap().get_priority(){
-
-                    taskYIELD_IF_USING_PREEMPTION!();
-
-                }
-                else{
-                    mtCOVERAGE_TEST_MARKER!();
-                }
-
-            }
-            else{
-
-                mtCOVERAGE_TEST_MARKER!();
-            
-            }
-
-            taskEXIT_CRITICAL!();
-
-            $stream_buffer.xTaskWaitingToReceive = None;
+macro_rules! get_streambuffer_handle_from_option {
+    ($option: expr) => {
+        match $option {
+            Some(handle) => handle,
+            None => TaskHandle::from(TCB::new()),
         }
-        
-        task_resume_all();
     };
 }
 
+pub fn send_completed(stream_buffer: &mut StreamBufferDef) {
+    task_suspend_all();
+
+    if stream_buffer.xTaskWaitingToReceive.is_some() {
+        taskENTER_CRITICAL!();
+
+        // let task_receive = stream_buffer.xTaskWaitingToReceive;
+
+        let  OriginalNotifyState = stream_buffer.clone().xTaskWaitingToReceive.unwrap().get_notify_state();
+
+
+        traceTASK_NOTIFY!();
+
+        if OriginalNotifyState == taskWAITING_NOTIFICATION!() {
+            list_remove(stream_buffer.clone().xTaskWaitingToReceive.unwrap().get_event_list_item());
+
+            stream_buffer.clone()
+                .xTaskWaitingToReceive
+                .unwrap()
+                .append_task_to_ready_list();
+
+            if get_current_task_handle!().get_priority()
+                < stream_buffer.clone().xTaskWaitingToReceive.unwrap().get_priority()
+            {
+                taskYIELD_IF_USING_PREEMPTION!();
+            } else {
+                mtCOVERAGE_TEST_MARKER!();
+            }
+        } else {
+            mtCOVERAGE_TEST_MARKER!();
+        }
+
+        taskEXIT_CRITICAL!();
+
+        stream_buffer.xTaskWaitingToReceive = None;
+    }
+
+    task_resume_all();
+}
+
 #[macro_export]
-macro_rules! receive_completed{
-    ($stream_buffer:expr) =>{
+macro_rules! receive_completed {
+    ($stream_buffer:expr) => {
         task_suspend_all();
 
-        if $stream_buffer.xTaskWaitingToSend.is_some()  {
-
+        if $stream_buffer.xTaskWaitingToSend.is_some() {
             taskENTER_CRITICAL!();
 
-            let mut task_to_notify = get_tcb_from_handle_mut!($stream_buffer.xTaskWaitingToSend);
+            let OriginalNotifyState = $stream_buffer.clone()
+                .xTaskWaitingToSend
+                .unwrap()
+                .get_notify_value();
 
-            let OriginalNotifyState = task_to_notify.notified_value;
-
-            task_to_notify.notified_value = taskNOTIFICATION_RECEIVED!();
+            $stream_buffer.clone()
+                .xTaskWaitingToSend
+                .unwrap()
+                .set_notify_value(taskNOTIFICATION_RECEIVED!());
 
             traceTASK_NOTIFY!();
 
-            if OriginalNotifyState == taskWAITING_NOTIFICATION!(){
+            if OriginalNotifyState == taskWAITING_NOTIFICATION!() {
+                list_remove(($stream_buffer.clone().xTaskWaitingToSend.unwrap()).get_event_list_item());
 
-                list_remove(&task_to_notify.state_list_item);
-                
-                $stream_buffer.xTaskWaitingToSend.unwrap().append_task_to_ready_list();
+                $stream_buffer.clone()
+                    .xTaskWaitingToSend
+                    .unwrap()
+                    .append_task_to_ready_list();
 
-                if get_current_task_handle!().get_priority() <  $stream_buffer.xTaskWaitingToSend.unwrap().get_priority(){
-
+                if get_current_task_handle!().get_priority()
+                    < $stream_buffer.clone().xTaskWaitingToSend.unwrap().get_priority()
+                {
                     taskYIELD_IF_USING_PREEMPTION!();
-
-                }
-                else{
+                } else {
                     mtCOVERAGE_TEST_MARKER!();
                 }
-
-            }
-            else{
-
+            } else {
                 mtCOVERAGE_TEST_MARKER!();
-            
             }
 
             taskEXIT_CRITICAL!();
 
             $stream_buffer.xTaskWaitingToSend = None;
-   
         }
-
 
         task_resume_all();
     };
 }
-
-
 
 #[macro_export]
 macro_rules! sbBYTES_TO_STORE_MESSAGE_LENGTH {
@@ -882,4 +815,3 @@ pub fn task_check_for_timeout(pxtimeout: &mut time_out, ticks_to_wait: &mut Tick
 
     xreturn
 }
-

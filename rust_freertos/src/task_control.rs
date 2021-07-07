@@ -465,6 +465,23 @@ impl From<TaskHandle> for Weak<RwLock<TCB>> {
 }
 
 impl TaskHandle {
+
+    pub fn set_notify_state(&mut self, notify_state:u8){
+        get_tcb_from_handle_mut!(self).set_notify_state(notify_state);
+    }
+    pub fn set_notify_value(&mut self, notified_value:u32){
+        get_tcb_from_handle_mut!(self).set_notify_value(notified_value);
+    }
+    pub fn get_notify_state(&self) -> u8{
+        get_tcb_from_handle!(self).get_notify_state()
+    }
+    pub fn get_notify_value(&self)->u32{
+        get_tcb_from_handle!(self).get_notify_value()
+    }
+
+
+
+
     pub fn from_arc(arc: Arc<RwLock<TCB>>) -> Self {
         TaskHandle(arc)
     }
