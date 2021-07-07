@@ -16,7 +16,7 @@ fn main() { // test streambuffer
     let sender = move || {
         for i in 1..11 {
             // send方法的参数包括要发送的数据、最大发送值和 ticks_to_wait
-            buffer_sender.send(i, 1024，pdMS_TO_TICKS!(50)).unwrap();
+            buffer_sender.send(i, 1024, pdMS_TO_TICKS!(50)).unwrap();
         }
         loop {
         }
