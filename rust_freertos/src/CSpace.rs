@@ -7,8 +7,10 @@
 #![allow(unused_mut)]
 #![allow(unreachable_code)]
 
-use crate::types::*;
 use crate::arch_structures_TCB::*;
+use crate::task_control_cap::*;
+use crate::types::*;
+use std::sync::Arc;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -18,32 +20,32 @@ pub struct lookupCap_ret_t {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct lookupCapAndSlot_ret_t {
     pub status: u64,
     pub cap: cap_t,
-    pub slot: *mut cte_t,
+    pub slot: Arc<cte_t>,
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct lookupSlot_raw_ret_t {
     pub status: u64,
-    pub slot: *mut cte_t,
+    pub slot: Arc<cte_t>,
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct lookupSlot_ret_t {
     pub status: u64,
-    pub slot: *mut cte_t,
+    pub slot: Arc<cte_t>,
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct resolveAddressBits_ret_t {
     pub status: u64,
-    pub slot: *mut cte_t,
+    pub slot: Arc<cte_t>,
     pub bitsRemaining: u64,
 }
 
@@ -52,18 +54,28 @@ extern "C" {
     static mut current_lookup_fault: lookup_fault_t;
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn lookupCap(thread: *mut tcb_t, cPtr: u64) -> lookupCap_ret_t {
-    let mut lu_ret = lookupSlot(thread, cPtr);
-    if lu_ret.status != 0u64 {
-        return lookupCap_ret_t {
-            status: lu_ret.status,
-            cap: cap_null_cap_new(),
-        };
+impl TaskHandle {
+    pub fn lookupCap(thread: &mut Self, cPtr: u64) -> lookupCap_ret_t {
+        let mut lu_ret = lookupSlot(thread, cPtr);
+        if lu_ret.status != 0u64 {
+            return lookupCap_ret_t {
+                status: lu_ret.status,
+                cap: cap_null_cap_new(),
+            };
+        }
+        lookupCap_ret_t {
+            status: 0u64,
+            cap: (*lu_ret.slot).cap,
+        }
     }
-    lookupCap_ret_t {
-        status: 0u64,
-        cap: (*lu_ret.slot).cap,
+
+    pub fn lookupSlot(thread: &mut Self, capptr: u64) -> lookupSlot_raw_ret_t {
+        let threadRoot = (*tcb_ptr_cte_ptr(thread, tcb_cnode_index::tcbCTable as u64)).cap;
+        let res_ret = resolveAddressBits(threadRoot, capptr, wordBits);
+        lookupSlot_raw_ret_t {
+            status: res_ret.status,
+            slot: res_ret.slot,
+        }
     }
 }
 
@@ -74,7 +86,7 @@ pub unsafe extern "C" fn lookupCapAndSlot(thread: *mut tcb_t, cPtr: u64) -> look
         return lookupCapAndSlot_ret_t {
             status: lu_ret.status,
             cap: cap_null_cap_new(),
-            slot: 0u64 as *mut cte_t,
+            slot: 0u64 as Arc<cte_t>,
         };
     }
     lookupCapAndSlot_ret_t {
@@ -84,15 +96,6 @@ pub unsafe extern "C" fn lookupCapAndSlot(thread: *mut tcb_t, cPtr: u64) -> look
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn lookupSlot(thread: *mut tcb_t, capptr: u64) -> lookupSlot_raw_ret_t {
-    let threadRoot = (*tcb_ptr_cte_ptr(thread, tcb_cnode_index::tcbCTable as u64)).cap;
-    let res_ret = resolveAddressBits(threadRoot, capptr, wordBits);
-    lookupSlot_raw_ret_t {
-        status: res_ret.status,
-        slot: res_ret.slot,
-    }
-}
 
 #[no_mangle]
 pub unsafe extern "C" fn lookupSlotForCNodeOp(
@@ -107,7 +110,7 @@ pub unsafe extern "C" fn lookupSlotForCNodeOp(
         current_lookup_fault = lookup_fault_invalid_root_new();
         return lookupSlot_ret_t {
             status: exception::EXCEPTION_SYSCALL_ERROR as u64,
-            slot: 0u64 as *mut cte_t,
+            slot: 0u64 as Arc<cte_t>,
         };
     }
 
@@ -117,7 +120,7 @@ pub unsafe extern "C" fn lookupSlotForCNodeOp(
         current_syscall_error.rangeErrorMax = wordBits;
         return lookupSlot_ret_t {
             status: exception::EXCEPTION_SYSCALL_ERROR as u64,
-            slot: 0u64 as *mut cte_t,
+            slot: 0u64 as Arc<cte_t>,
         };
     }
 
@@ -127,7 +130,7 @@ pub unsafe extern "C" fn lookupSlotForCNodeOp(
         current_syscall_error.failedLookupWasSource = isSource;
         return lookupSlot_ret_t {
             status: exception::EXCEPTION_SYSCALL_ERROR as u64,
-            slot: 0u64 as *mut cte_t,
+            slot: 0u64 as Arc<cte_t>,
         };
     }
     if res_ret.bitsRemaining != 0 {
@@ -136,7 +139,7 @@ pub unsafe extern "C" fn lookupSlotForCNodeOp(
         current_lookup_fault = lookup_fault_depth_mismatch_new(0, res_ret.bitsRemaining);
         return lookupSlot_ret_t {
             status: exception::EXCEPTION_SYSCALL_ERROR as u64,
-            slot: 0u64 as *mut cte_t,
+            slot: 0u64 as Arc<cte_t>,
         };
     }
     lookupSlot_ret_t {
@@ -182,7 +185,7 @@ pub unsafe extern "C" fn resolveAddressBits(
 ) -> resolveAddressBits_ret_t {
     let mut ret = resolveAddressBits_ret_t {
         status: 0u64,
-        slot: 0u64 as *mut cte_t,
+        slot: 0u64 as Arc<cte_t>,
         bitsRemaining: n_bits,
     };
     if cap_get_capType(nodeCap) != cap_tag_t::cap_cnode_cap as u64 {
@@ -208,7 +211,7 @@ pub unsafe extern "C" fn resolveAddressBits(
             return ret;
         }
         let offset: u64 = (capptr >> (n_bits - levelBits)) & MASK!(radixBits);
-        let slot = (cap_cnode_cap_get_capCNodePtr(nodeCap) as *mut cte_t).offset(offset as isize);
+        let slot = (cap_cnode_cap_get_capCNodePtr(nodeCap) as Arc<cte_t>).offset(offset as isize);
         if n_bits <= levelBits {
             ret.status = 0u64;
             ret.slot = slot;

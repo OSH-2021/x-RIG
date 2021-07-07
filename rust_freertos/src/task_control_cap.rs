@@ -16,6 +16,8 @@ use crate::types::*;
 use crate::task_global::*;
 use crate::task_ipc::*;
 
+pub const MAX_CSlots: usize = 1024;
+
 pub const L2_BITMAP_SIZE: usize = (256 + (1 << 6) - 1) / (1 << 6);
 extern "C" {
     static mut ksReadyQueues: [tcb_queue_t; 256];   // TODO -> READY_TASK_LISTS
@@ -38,7 +40,7 @@ extern "C" {
 // TODO how to convert??
 // indeed we should have a lock on it
 static mut current_tcb_handle : TaskHandle = get_current_task_handle!();
-pub static mut ksCurThread: *mut tcb_t = get_tcb_from_handle_mut!(&current_tcb_handle);  //  TODO->  CURRENT_TCB
+pub static mut ksCurThread: *mut tcb_t = get_tcb_from_handle_mut!(current_tcb_handle);  //  TODO->  CURRENT_TCB
 
 
 /* Task states returned by eTaskGetState. */
@@ -121,7 +123,8 @@ pub struct task_control_block {
     // time_slice : UBaseType, // freertos应该也有内置的时间片吧 在哪？
     fault_handler : UBaseType, // used only once in qwq
     ipc_buffer : UBaseType, // 总觉得这个和stream buffer很像
-    pub registers : [word_t; n_contextRegisters]
+    pub registers : [word_t; n_contextRegisters],
+    pub cspace_root: Option<cnode>,
 }
 
 // pub unsafe extern "C" fn suspend(target: *mut tcb_t) {
@@ -187,7 +190,17 @@ impl task_control_block {
             fault_handler: 0,
             max_ctrl_prio: configMAX_PRIORITIES!(),
             ipc_buffer: 0,
-            registers : [0; n_contextRegisters]
+            registers : [0; n_contextRegisters],
+            cspace_root: Some(cnode {
+                caps: [cte_t {
+                    cap: cap_t {
+                        words: [0, 0]
+                    },
+                    cteMDBNode: mdb_node_t {
+                        words: [0, 0]
+                    }
+                }; MAX_CSlots]
+            }),
         }
     }
 
@@ -538,7 +551,7 @@ pub fn initialize_task_list () {
 /// * Implemented by: Fan Jinhao
 ///
 #[derive(Clone)]
-pub struct TaskHandle(Arc<RwLock<TCB>>);
+pub struct TaskHandle(pub Arc<RwLock<TCB>>);
 
 impl PartialEq for TaskHandle {
     fn eq(&self, other: &Self) -> bool {
@@ -823,24 +836,25 @@ impl TaskHandle {
     ///    
     /// # Return:
     ///    
-    pub fn invokeTCB_ThreadControl(
+    pub unsafe fn invokeTCB_ThreadControl(
         &self,
-        slot: *mut cte_t,
+        slot: Arc<cte_t>,
         faultep: u64,
         mcp: prio_t,
         priority: prio_t,
         cRoot_newCap: cap_t,
-        cRoot_srcSlot: *mut cte_t,
+        cRoot_srcSlot: Arc<cte_t>,
         vRoot_newCap: cap_t,
-        vRoot_srcSlot: *mut cte_t,
+        vRoot_srcSlot: Arc<cte_t>,
         bufferAddr: u64,
         bufferCap: cap_t,
-        bufferSrcSlot: *mut cte_t,
+        bufferSrcSlot: Arc<cte_t>,
         updateFlags: u64,
     ) -> u64 {
         let target_tcb: &mut TCB = get_tcb_from_handle_mut!(self);
-        let target_ptr: *mut TCB = target_tcb; //  as_raw??? TODO
-        let tCap = cap_thread_cap_new(target_ptr as u64);
+        let target_ptr = target_tcb as *mut TCB;
+        // let tCap = cap_thread_cap_new(target_ptr as u64);  //  originally
+        let tCap = cap_thread_cap_new(target_ptr as u64);  //  use *mut tcb_t and modify the function, in the function, use "as u64"
         //  Fault Handler
         if updateFlags & thread_control_flag::thread_control_update_space as u64 != 0u64 {
             target_tcb.set_fault_handler(faultep);
@@ -901,7 +915,7 @@ impl TaskHandle {
         0u64
     }
     // original name invokeTCB_CopyRegisters (add From to clarify)
-    pub fn invokeTCB_CopyRegistersFrom(
+    pub unsafe fn invokeTCB_CopyRegistersFrom(
         dest: &mut Self,
         src: &mut Self,
         suspendSource: bool,
@@ -962,7 +976,7 @@ impl TaskHandle {
             // suspend(src_tcb);
             suspend_task(src);
         }
-        let e = Arch_performTransfer(arch, src_tcb, node_state!(ksCurThread));
+        let e = Arch_performTransfer(arch, src_ptr, node_state!(ksCurThread));
         if e != 0u64 {
             return e;
         }
@@ -973,7 +987,7 @@ impl TaskHandle {
                 setRegister(
                     thread,
                     msgRegisters[i],
-                    getRegister(src_tcb, frameRegisters[i]),
+                    getRegister(src_ptr, frameRegisters[i]),
                 );
                 i += 1;
             }
@@ -992,14 +1006,14 @@ impl TaskHandle {
                 setRegister(
                     thread,
                     msgRegisters[i + n_frameRegisters],
-                    getRegister(src_tcb, gpRegisters[i]),
+                    getRegister(src_ptr, gpRegisters[i]),
                 );
                 i += 1;
             }
             if ipcBuffer as u64 != 0u64 && i < n_gpRegisters && i + n_frameRegisters < n as usize {
                 while i < n_gpRegisters && i + n_frameRegisters < n as usize {
                     *ipcBuffer.offset((i + n_frameRegisters + 1) as isize) =
-                        getRegister(src_tcb, gpRegisters[i]);
+                        getRegister(src_ptr, gpRegisters[i]);
                     i += 1;
                 }
             }
@@ -1086,7 +1100,7 @@ impl TaskHandle {
         0u64
     }
 }
-    pub fn setMRs_lookup_failure(
+    pub unsafe fn setMRs_lookup_failure(
         receiver: *mut tcb_t,
         receiveIPCBuffer: *mut u64,
         luf: lookup_fault_t,
@@ -1217,7 +1231,7 @@ macro_rules! get_tcb_from_handle {
 macro_rules! get_tcb_from_handle_mut {
     ($handle: expr) => {
         match $handle.0.try_write() {
-            Ok(a) => &mut *a,
+            Ok(a) => a,
             Err(_) => {
                 warn!("TCB was locked, write failed");
                 panic!("Task handle locked!");

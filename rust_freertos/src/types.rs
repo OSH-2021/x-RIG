@@ -24,18 +24,18 @@ pub const seL4_TCBBits: u64 = 11;
 
 
 //  capability
-#[derive(Copy, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub struct cap_t {
     pub words: [u64; 2],
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub struct mdb_node_t {
     pub words: [u64; 2],
 }
 
 //  Cap Table Entry
-#[derive(Copy, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub struct cte_t {
     pub cap: cap_t,
     pub cteMDBNode: mdb_node_t,
@@ -258,7 +258,7 @@ pub unsafe fn cap_get_capPtr(cap: cap_t) -> u64 {
     } else if ctag == cap_tag_t::cap_cnode_cap as u64 {
         return cap_cnode_cap_get_capCNodePtr(cap);
     } else if ctag == cap_tag_t::cap_thread_cap as u64 {
-        return tcb_ptr_cte_ptr(cap_thread_cap_get_capTCBPtr(cap) as *mut tcb_t, 0) as u64;
+        return Arc::as_ptr(&tcb_ptr_cte_ptr(cap_thread_cap_get_capTCBPtr(cap) as *mut tcb_t, 0)) as u64;
     } else if ctag == cap_tag_t::cap_zombie_cap as u64 {
         return cap_zombie_cap_get_capZombiePtr(cap);
     } else if ctag == cap_tag_t::cap_domain_cap as u64
@@ -295,8 +295,8 @@ pub fn isCapRevocable(derivedCap: cap_t, srcCap: cap_t) -> bool_t {
 }
 
 #[inline]
-pub unsafe fn tcb_ptr_cte_ptr(p: *mut tcb_t, i: u64) -> *mut cte_t {
-    (((p as u64) & (!MASK!(seL4_TCBBits))) as *mut cte_t).offset(i as isize)
+pub fn tcb_ptr_cte_ptr(p: Arc<tcb_t>, i: u64) -> Arc<cte_t> {
+    Arc::from_raw((((unsafe {Arc::as_ptr(&p)} as u64) & (!MASK!(seL4_TCBBits))) as *mut cte_t).offset(i as isize))
 }
 
 // include/object/tcb.h 因为不想翻译tcb.h整个文件所以就放这里了
@@ -352,7 +352,7 @@ pub struct pte_range {
     length: word_t,
 }
 pub type pte_range_t = pte_range;
-pub type cte_ptr_t = *mut cte_t;
+pub type cte_ptr_t = Arc<cte_t>;
 
 const seL4_MsgExtraCapBits: usize = 2;
 pub const seL4_MsgMaxExtraCaps: usize = (1usize << seL4_MsgExtraCapBits) - 1;
@@ -583,7 +583,7 @@ pub enum invocation_label {
 }
 
 //  cap
-pub unsafe extern "C" fn deriveCap(slot: *mut cte_t, cap: cap_t) -> deriveCap_ret_t {
+pub unsafe extern "C" fn deriveCap(slot: Arc<cte_t>, cap: cap_t) -> deriveCap_ret_t {
     if isArchCap(cap) != 0u64 {
         // return Arch_deriveCap(slot, cap);    //  TODO extern "C"
     }

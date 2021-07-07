@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use crate::task_control_cap::*;
 use crate::types::*;
 use crate::arch_structures_TCB::*;
@@ -17,7 +18,7 @@ impl TaskHandle {
         sender.set_state(_thread_state::BlockedOnReply);
         let sender_tcb = get_tcb_from_handle_mut!(sender);
         let receiver_tcb = get_tcb_from_handle_mut!(receiver);
-        let sender_ptr = sender_tcb as *mut tcb_t;
+        // let sender_ptr = Arc::as_ptr(&sender.0);
         let replySlot = tcb_ptr_cte_ptr(sender_tcb, tcb_cnode_index::tcbReply as u64);
         let callerSlot = tcb_ptr_cte_ptr(receiver_tcb, tcb_cnode_index::tcbCaller as u64);
         cteInsert(
@@ -40,7 +41,7 @@ pub unsafe fn lookupExtraCaps(
     info: seL4_MessageInfo_t,
 ) -> u64 {
     if bufferPtr as u64 == 0u64 {
-        current_extra_caps.excaprefs[0] = 0u64 as *mut cte_t;
+        current_extra_caps.excaprefs[0] = 0u64 as Arc<cte_t>;
         return 0u64;
     }
     let length = seL4_MessageInfo_get_extraCaps(info);
@@ -56,7 +57,7 @@ pub unsafe fn lookupExtraCaps(
         i += 1;
     }
     if i < seL4_MsgMaxExtraCaps {
-        current_extra_caps.excaprefs[i] = 0u64 as *mut cte_t;
+        current_extra_caps.excaprefs[i] = 0u64 as Arc<cte_t>;
     }
     0u64
 }

@@ -14,7 +14,7 @@ extern "C" {
     static mut current_lookup_fault: lookup_fault_t;
     fn createNewObjects(
         t: u64,
-        parent: *mut cte_t,
+        parent: Arc<cte_t>,
         slots: slot_range_t,
         regionBase: u64,
         userSize: u64,
@@ -76,7 +76,7 @@ pub const seL4_MaxUntypedBits: u64 = 47;
 pub unsafe extern "C" fn decodeUntypedInvocation(
     invLabel: u64,
     length: u64,
-    slot: *mut cte_t,
+    slot: Arc<cte_t>,
     cap: cap_t,
     excaps: extra_caps_t,
     call: bool_t,
@@ -173,7 +173,7 @@ pub unsafe extern "C" fn decodeUntypedInvocation(
         return exception::EXCEPTION_SYSCALL_ERROR as u64;
     }
     let slots = slot_range_t {
-        cnode: cap_cnode_cap_get_capCNodePtr(nodeCap) as *mut cte_t,
+        cnode: cap_cnode_cap_get_capCNodePtr(nodeCap) as Arc<cte_t>,
         offset: nodeOffset,
         length: nodeWindow,
     };
@@ -234,7 +234,7 @@ pub unsafe extern "C" fn decodeUntypedInvocation(
     )
 }
 
-unsafe fn resetUntypedCap(srcSlot: *mut cte_t) -> u64 {
+unsafe fn resetUntypedCap(srcSlot: Arc<cte_t>) -> u64 {
     let prev_cap = (*srcSlot).cap;
     let block_size = cap_untyped_cap_get_capBlockSize(prev_cap);
     let regionBase = cap_untyped_cap_get_capPtr(prev_cap);
@@ -267,7 +267,7 @@ unsafe fn resetUntypedCap(srcSlot: *mut cte_t) -> u64 {
 
 #[no_mangle]
 pub unsafe extern "C" fn invokeUntyped_Retype(
-    srcSlot: *mut cte_t,
+    srcSlot: Arc<cte_t>,
     reset: u64,
     retypeBase: u64,
     newType: u64,
