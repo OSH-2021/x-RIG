@@ -49,6 +49,7 @@ default = [
 	"INCLUDE_uxTaskPriorityGet",
 	"INCLUDE_vTaskPrioritySet",
  	"configUSE_CAPS"
+	#"configUSE_STREAMBUFFER"
 ]
 # Configuations starting with "INCLUDE_"
 # For more information, read Chapter 3 of the book.

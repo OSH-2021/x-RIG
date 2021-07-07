@@ -73,7 +73,7 @@ pub const seL4_MinUntypedBits: u64 = 4;
 pub const seL4_MaxUntypedBits: u64 = 47;
 
 #[no_mangle]
-pub unsafe extern "C" fn decodeUntypedInvocation(
+pub unsafe fn decodeUntypedInvocation(
     invLabel: u64,
     length: u64,
     slot: Arc<cte_t>,
@@ -220,7 +220,7 @@ pub unsafe extern "C" fn decodeUntypedInvocation(
     }
     let alignedFreeRef = alignUp(freeRef, objectSize);
     setThreadState(
-        node_state!(ksCurThread),
+        node_state!(get_ptr_from_handle!(get_current_task_handle!())),
         _thread_state::ThreadState_Restart as u64,
     );
     invokeUntyped_Retype(
@@ -266,7 +266,7 @@ unsafe fn resetUntypedCap(srcSlot: Arc<cte_t>) -> u64 {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn invokeUntyped_Retype(
+pub unsafe fn invokeUntyped_Retype(
     srcSlot: Arc<cte_t>,
     reset: u64,
     retypeBase: u64,

@@ -22,7 +22,7 @@ pub mod projdefs;
 #[macro_use]
 pub mod task_global;
 #[macro_use]
-mod trace;
+pub mod trace;
 // mod task_api;
 #[macro_use]
 pub mod kernel;

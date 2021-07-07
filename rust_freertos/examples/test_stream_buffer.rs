@@ -4,7 +4,7 @@ extern crate rust_freertos;
 
 use rust_freertos::*;
 use simplelog::*;
-use stream_buffer::StreamBuffer;
+use rust_freertos::stream_buffer::*;
 use std::sync::Arc;
 
 fn main() { // test streambuffer

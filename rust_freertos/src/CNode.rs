@@ -11,6 +11,7 @@ use crate::types::*;
 use crate::CSpace::*;
 use crate::*;
 use std::sync::Arc;
+use std::ptr::*;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct cnode {
@@ -48,7 +49,7 @@ extern "C" {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn decodeCNodeInvocation(
+pub unsafe fn decodeCNodeInvocation(
     invLabel: u64,
     length: u64,
     cap: cap_t,
@@ -78,7 +79,7 @@ pub unsafe extern "C" fn decodeCNodeInvocation(
     if invLabel >= invocation_label::CNodeCopy as u64
         && invLabel <= invocation_label::CNodeMutate as u64
     {
-        if length < 4 || excaps.excaprefs[0] as u64 == 0u64 {
+        if length < 4 || Arc::as_ptr(&excaps.excaprefs[0]) as u64 == 0u64 {
             userError!("CNode Copy/Mint/Move/Mutate: Truncated message.");
             current_syscall_error.type_ = seL4_Error::seL4_TruncatedMessage as u64;
             return exception::EXCEPTION_SYSCALL_ERROR as u64;
@@ -159,7 +160,7 @@ pub unsafe extern "C" fn decodeCNodeInvocation(
         }
 
         //    setThreadState(
-        //        node_state!(ksCurThread),
+        //        node_state!(get_ptr_from_handle!(get_current_task_handle!())),
         //        _thread_state::Restart,
         //    );
         let current_task = get_current_task_handle!();
@@ -171,12 +172,12 @@ pub unsafe extern "C" fn decodeCNodeInvocation(
         }
     }
     if invLabel == invocation_label::CNodeRevoke as u64 {
-        // setThreadState(node_state!(ksCurThread), _thread_state::Restart);
+        // setThreadState(node_state!(get_ptr_from_handle!(get_current_task_handle!())), _thread_state::Restart);
         let current_task = get_current_task_handle!();
         current_task.set_state(_thread_state::Restart);
         return invokeCNodeRevoke(destSlot);
     } else if invLabel == invocation_label::CNodeDelete as u64 {
-        // setThreadState(node_state!(ksCurThread), _thread_state::Restart);
+        // setThreadState(node_state!(get_ptr_from_handle!(get_current_task_handle!())), _thread_state::Restart);
         let current_task = get_current_task_handle!();
         current_task.set_state(_thread_state::Restart);
         return invokeCNodeDelete(destSlot);
@@ -186,7 +187,7 @@ pub unsafe extern "C" fn decodeCNodeInvocation(
             userError!("CNode SaveCaller: Destination slot not empty.");
             return status;
         }
-        // setThreadState(node_state!(ksCurThread), _thread_state::Restart);
+        // setThreadState(node_state!(get_ptr_from_handle!(get_current_task_handle!())), _thread_state::Restart);
         let current_task = get_current_task_handle!();
         current_task.set_state(_thread_state::Restart);
         return invokeCNodeSaveCaller(destSlot);
@@ -197,12 +198,12 @@ pub unsafe extern "C" fn decodeCNodeInvocation(
             current_syscall_error.type_ = seL4_Error::seL4_IllegalOperation as u64;
             return exception::EXCEPTION_SYSCALL_ERROR as u64;
         }
-        // setThreadState(node_state!(ksCurThread), _thread_state::Restart);
+        // setThreadState(node_state!(get_ptr_from_handle!(get_current_task_handle!())), _thread_state::Restart);
         let current_task = get_current_task_handle!();
         current_task.set_state(_thread_state::Restart);
         return invokeCNodeCancelBadgedSends(destCap);
     } else if invLabel == invocation_label::CNodeRotate as u64 {
-        if length < 8 || excaps.excaprefs[0] as u64 == 0u64 || excaps.excaprefs[1] as u64 == 0u64 {
+        if length < 8 || Arc::as_ptr(&excaps.excaprefs[0]) as u64 == 0u64 || Arc::as_ptr(&excaps.excaprefs[1]) as u64 == 0u64 {
             current_syscall_error.type_ = seL4_Error::seL4_TruncatedMessage as u64;
             return exception::EXCEPTION_SYSCALL_ERROR as u64;
         }
@@ -259,7 +260,7 @@ pub unsafe extern "C" fn decodeCNodeInvocation(
             current_syscall_error.type_ = seL4_Error::seL4_IllegalOperation as u64;
             return exception::EXCEPTION_SYSCALL_ERROR as u64;
         }
-        // setThreadState(node_state!(ksCurThread), _thread_state::Restart);
+        // setThreadState(node_state!(get_ptr_from_handle!(get_current_task_handle!())), _thread_state::Restart);
         let current_task = get_current_task_handle!();
         current_task.set_state(_thread_state::Restart);
         return invokeCNodeRotate(newSrcCap, newPivotCap, srcSlot, pivotSlot, destSlot);
@@ -268,27 +269,27 @@ pub unsafe extern "C" fn decodeCNodeInvocation(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn invokeCNodeRevoke(destSlot: Arc<cte_t>) -> u64 {
+pub unsafe fn invokeCNodeRevoke(destSlot: Arc<cte_t>) -> u64 {
     cteRevoke(destSlot)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn invokeCNodeDelete(destSlot: Arc<cte_t>) -> u64 {
+pub unsafe fn invokeCNodeDelete(destSlot: Arc<cte_t>) -> u64 {
     cteDelete(destSlot, 1u64)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn invokeCNodeCancelBadgedSends(cap: cap_t) -> u64 {
+pub unsafe fn invokeCNodeCancelBadgedSends(cap: cap_t) -> u64 {
     let badge = cap_endpoint_cap_get_capEPBadge(cap);
     if badge != 0u64 {
-        let ep = cap_endpoint_cap_get_capEPPtr(cap) as Arc<endpoint_t>;
+        let ep = Arc::from_raw(cap_endpoint_cap_get_capEPPtr(cap) as *mut endpoint_t);
         cancelBadgedSends(ep, badge);
     }
     0u64
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn invokeCNodeInsert(
+pub unsafe fn invokeCNodeInsert(
     cap: cap_t,
     srcSlot: Arc<cte_t>,
     destSlot: Arc<cte_t>,
@@ -298,7 +299,7 @@ pub unsafe extern "C" fn invokeCNodeInsert(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn invokeCNodeMove(
+pub unsafe fn invokeCNodeMove(
     cap: cap_t,
     srcSlot: Arc<cte_t>,
     destSlot: Arc<cte_t>,
@@ -308,7 +309,7 @@ pub unsafe extern "C" fn invokeCNodeMove(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn invokeCNodeRotate(
+pub unsafe fn invokeCNodeRotate(
     cap1: cap_t,
     cap2: cap_t,
     slot1: Arc<cte_t>,
@@ -326,8 +327,9 @@ pub unsafe extern "C" fn invokeCNodeRotate(
 
 #[no_mangle]
 pub fn invokeCNodeSaveCaller(destSlot: Arc<cte_t>) -> u64 {
-    let srcSlot = tcb_ptr_cte_ptr(ksCurThread, tcb_cnode_index::tcbCaller as u64);
+    let srcSlot = tcb_ptr_cte_ptr(get_ptr_from_handle!(get_current_task_handle!()), tcb_cnode_index::tcbCaller as u64);
     let cap = (*srcSlot).cap;
+    let srcSlot = Arc::from_raw(srcSlot);
     let cap_type = cap_get_capType(cap);
     if cap_type == cap_tag_t::cap_null_cap as u64 {
         //userError!("CNode SaveCaller: Reply cap not present.")
@@ -357,27 +359,27 @@ unsafe fn setUntypedCapAsFull(srcCap: cap_t, newCap: cap_t, srcSlot: Arc<cte_t>)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn cteInsert(newCap: cap_t, srcSlot: Arc<cte_t>, destSlot: Arc<cte_t>) {
+pub unsafe fn cteInsert(newCap: cap_t, srcSlot: Arc<cte_t>, destSlot: Arc<cte_t>) {
     let srcMDB: mdb_node_t = (*srcSlot).cteMDBNode;
     let srcCap: cap_t = (*srcSlot).cap;
     let newCapIsRevocable: u64 = isCapRevocable(newCap, srcCap);
-    let mut newMDB = mdb_node_set_mdbPrev(srcMDB, srcSlot as u64);
+    let mut newMDB = mdb_node_set_mdbPrev(srcMDB, Arc::as_ptr(&srcSlot) as u64);
     newMDB = mdb_node_set_mdbRevocable(newMDB, newCapIsRevocable);
     newMDB = mdb_node_set_mdbFirstBadged(newMDB, newCapIsRevocable);
     setUntypedCapAsFull(srcCap, newCap, srcSlot);
     (*destSlot).cap = newCap;
     (*destSlot).cteMDBNode = newMDB;
-    mdb_node_ptr_set_mdbNext(&mut (*srcSlot).cteMDBNode, destSlot as u64);
+    mdb_node_ptr_set_mdbNext(&mut (*srcSlot).cteMDBNode, Arc::as_ptr(&destSlot) as u64);
     if mdb_node_get_mdbNext(newMDB) != 0u64 {
         mdb_node_ptr_set_mdbPrev(
-            &mut (*(mdb_node_get_mdbNext(newMDB) as Arc<cte_t>)).cteMDBNode,
-            destSlot as u64,
+            &mut (*(mdb_node_get_mdbNext(newMDB) as *mut cte_t)).cteMDBNode,
+            Arc::as_ptr(&destSlot) as u64
         );
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn cteMove(newCap: cap_t, srcSlot: Arc<cte_t>, destSlot: Arc<cte_t>) {
+pub unsafe fn cteMove(newCap: cap_t, srcSlot: Arc<cte_t>, destSlot: Arc<cte_t>) {
     let mdb: mdb_node_t = (*srcSlot).cteMDBNode;
     (*destSlot).cap = newCap;
     (*srcSlot).cap = cap_null_cap_new();
@@ -385,16 +387,16 @@ pub unsafe extern "C" fn cteMove(newCap: cap_t, srcSlot: Arc<cte_t>, destSlot: A
     (*srcSlot).cteMDBNode = mdb_node_new(0, 0, 0, 0);
     let prev_ptr: u64 = mdb_node_get_mdbPrev(mdb);
     if prev_ptr != 0u64 {
-        mdb_node_ptr_set_mdbNext(&mut (*(prev_ptr as Arc<cte_t>)).cteMDBNode, destSlot as u64);
+        mdb_node_ptr_set_mdbNext(&mut (*(prev_ptr as *mut cte_t)).cteMDBNode, Arc::as_ptr(&destSlot) as u64);
     }
     let next_ptr: u64 = mdb_node_get_mdbNext(mdb);
     if next_ptr != 0u64 {
-        mdb_node_ptr_set_mdbPrev(&mut (*(next_ptr as Arc<cte_t>)).cteMDBNode, destSlot as u64);
+        mdb_node_ptr_set_mdbPrev(&mut (*(next_ptr as *mut cte_t)).cteMDBNode, Arc::as_ptr(&destSlot) as u64);
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn capSwapForDelete(slot1: Arc<cte_t>, slot2: Arc<cte_t>) {
+pub unsafe fn capSwapForDelete(slot1: Arc<cte_t>, slot2: Arc<cte_t>) {
     if slot1 == slot2 {
         return;
     }
@@ -404,35 +406,35 @@ pub unsafe extern "C" fn capSwapForDelete(slot1: Arc<cte_t>, slot2: Arc<cte_t>) 
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn cteSwap(cap1: cap_t, slot1: Arc<cte_t>, cap2: cap_t, slot2: Arc<cte_t>) {
+pub unsafe fn cteSwap(cap1: cap_t, slot1: Arc<cte_t>, cap2: cap_t, slot2: Arc<cte_t>) {
     (*slot1).cap = cap2;
     (*slot2).cap = cap1;
     let mdb1: mdb_node_t = (*slot1).cteMDBNode;
     let mut prev_ptr: u64 = mdb_node_get_mdbPrev(mdb1);
     if prev_ptr != 0u64 {
-        mdb_node_ptr_set_mdbNext(&mut (*(prev_ptr as Arc<cte_t>)).cteMDBNode, slot2 as u64);
+        mdb_node_ptr_set_mdbNext(&mut (*(prev_ptr as *mut cte_t)).cteMDBNode, Arc::as_ptr(&slot2) as u64);
     }
     let mut next_ptr: u64 = mdb_node_get_mdbNext(mdb1);
     if next_ptr != 0u64 {
-        mdb_node_ptr_set_mdbPrev(&mut (*(next_ptr as Arc<cte_t>)).cteMDBNode, slot2 as u64);
+        mdb_node_ptr_set_mdbPrev(&mut (*(next_ptr as *mut cte_t)).cteMDBNode, Arc::as_ptr(&slot2) as u64);
     }
     let mdb2: mdb_node_t = (*slot2).cteMDBNode;
     (*slot1).cteMDBNode = mdb2;
     (*slot2).cteMDBNode = mdb1;
     prev_ptr = mdb_node_get_mdbPrev(mdb2);
     if prev_ptr != 0u64 {
-        mdb_node_ptr_set_mdbNext(&mut (*(prev_ptr as Arc<cte_t>)).cteMDBNode, slot1 as u64);
+        mdb_node_ptr_set_mdbNext(&mut (*(prev_ptr as *mut cte_t)).cteMDBNode, Arc::as_ptr(&slot1) as u64);
     }
     next_ptr = mdb_node_get_mdbNext(mdb2);
     if next_ptr != 0u64 {
-        mdb_node_ptr_set_mdbPrev(&mut (*(next_ptr as Arc<cte_t>)).cteMDBNode, slot1 as u64);
+        mdb_node_ptr_set_mdbPrev(&mut (*(next_ptr as *mut cte_t)).cteMDBNode, Arc::as_ptr(&slot1) as u64);
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn cteRevoke(slot: Arc<cte_t>) -> u64 {
-    let mut nextPtr: Arc<cte_t> = mdb_node_get_mdbNext((*slot).cteMDBNode) as Arc<cte_t>;
-    while nextPtr as u64 != 0u64 && isMDBParentOf(slot, nextPtr) != 0u64 {
+pub unsafe fn cteRevoke(slot: Arc<cte_t>) -> u64 {
+    let mut nextPtr: Arc<cte_t> = Arc::from_raw(mdb_node_get_mdbNext((*slot).cteMDBNode) as *mut cte_t);
+    while Arc::as_ptr(&nextPtr) as u64 != 0u64 && isMDBParentOf(slot, nextPtr) != 0u64 {
         let mut status: u64 = cteDelete(nextPtr, true as u64);
         if status != 0u64 {
             return status;
@@ -441,13 +443,13 @@ pub unsafe extern "C" fn cteRevoke(slot: Arc<cte_t>) -> u64 {
         if status != 0u64 {
             return status;
         }
-        nextPtr = mdb_node_get_mdbNext((*slot).cteMDBNode) as Arc<cte_t>;
+        nextPtr = Arc::from_raw(mdb_node_get_mdbNext((*slot).cteMDBNode) as *mut cte_t);
     }
     0u64
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn cteDelete(slot: Arc<cte_t>, exposed: bool_t) -> u64 {
+pub unsafe fn cteDelete(slot: Arc<cte_t>, exposed: bool_t) -> u64 {
     let fs_ret: finaliseSlot_ret_t = finaliseSlot(slot, exposed);
     if fs_ret.status != 0u64 {
         return fs_ret.status;
@@ -459,18 +461,18 @@ pub unsafe extern "C" fn cteDelete(slot: Arc<cte_t>, exposed: bool_t) -> u64 {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn emptySlot(slot: Arc<cte_t>, cleanupInfo: cap_t) {
+pub unsafe fn emptySlot(slot: Arc<cte_t>, cleanupInfo: cap_t) {
     if cap_get_capType((*slot).cap) != cap_tag_t::cap_null_cap as u64 {
         let mdbNode: mdb_node_t = (*slot).cteMDBNode;
-        let prev = mdb_node_get_mdbPrev(mdbNode) as Arc<cte_t>;
-        let next = mdb_node_get_mdbNext(mdbNode) as Arc<cte_t>;
-        if prev as u64 != 0u64 {
-            mdb_node_ptr_set_mdbNext(&mut (*prev).cteMDBNode, next as u64);
+        let prev = Arc::from_raw(mdb_node_get_mdbPrev(mdbNode) as *mut cte_t);
+        let next = Arc::from_raw(mdb_node_get_mdbNext(mdbNode) as *mut cte_t);
+        if Arc::as_ptr(&prev) as u64 != 0u64 {
+            mdb_node_ptr_set_mdbNext(&mut (*prev).cteMDBNode, Arc::as_ptr(&next) as u64);
         }
-        if next as u64 != 0u64 {
-            mdb_node_ptr_set_mdbPrev(&mut (*next).cteMDBNode, prev as u64);
+        if Arc::as_ptr(&next) as u64 != 0u64 {
+            mdb_node_ptr_set_mdbPrev(&mut (*next).cteMDBNode, Arc::as_ptr(&prev) as u64);
         }
-        if next as u64 != 0u64 {
+        if Arc::as_ptr(&next) as u64 != 0u64 {
             mdb_node_ptr_set_mdbFirstBadged(
                 &mut (*next).cteMDBNode,
                 mdb_node_get_mdbFirstBadged((*next).cteMDBNode)
@@ -490,7 +492,7 @@ unsafe fn capRemovable(cap: cap_t, slot: Arc<cte_t>) -> bool {
         return true;
     } else if cap_type == cap_tag_t::cap_zombie_cap as u64 {
         let n = cap_zombie_cap_get_capZombieNumber(cap);
-        let z_slot = cap_zombie_cap_get_capZombiePtr(cap) as Arc<cte_t>;
+        let z_slot = Arc::from_raw(cap_zombie_cap_get_capZombiePtr(cap) as *mut cte_t);
         return n == 0 || (n == 1 && slot == z_slot);
     }
     panic!("finaliseCap should only return Zombie or NullCap")
@@ -499,7 +501,7 @@ unsafe fn capRemovable(cap: cap_t, slot: Arc<cte_t>) -> bool {
 #[inline]
 unsafe fn capCyclicZombie(cap: cap_t, slot: Arc<cte_t>) -> bool {
     cap_get_capType(cap) == cap_tag_t::cap_zombie_cap as u64
-        && cap_zombie_cap_get_capZombiePtr(cap) as Arc<cte_t> == slot
+        && Arc::from_raw(cap_zombie_cap_get_capZombiePtr(cap) as *mut cte_t) == slot
 }
 
 unsafe fn finaliseSlot(slot: Arc<cte_t>, immediate: bool_t) -> finaliseSlot_ret_t {
@@ -546,11 +548,11 @@ unsafe fn finaliseSlot(slot: Arc<cte_t>, immediate: bool_t) -> finaliseSlot_ret_
 }
 
 unsafe fn reduceZombie(slot: Arc<cte_t>, immediate: bool_t) -> u64 {
-    let ptr = cap_zombie_cap_get_capZombiePtr((*slot).cap) as Arc<cte_t>;
+    let ptr = Arc::from_raw(cap_zombie_cap_get_capZombiePtr((*slot).cap) as *mut cte_t);
     let n = cap_zombie_cap_get_capZombieNumber((*slot).cap);
     let type_ = cap_zombie_cap_get_capZombieType((*slot).cap);
     if immediate == 1u64 {
-        let endSlot = ptr.offset((n - 1) as isize);
+        let endSlot = Arc::from_raw(Arc::as_ptr(&ptr).offset((n - 1) as isize));
         let status = cteDelete(endSlot, 0u64);
         if status != 0u64 {
             return status;
@@ -558,7 +560,7 @@ unsafe fn reduceZombie(slot: Arc<cte_t>, immediate: bool_t) -> u64 {
         let cap_type = cap_get_capType((*slot).cap);
         if cap_type == cap_tag_t::cap_null_cap as u64 {
         } else if cap_type == cap_tag_t::cap_zombie_cap as u64 {
-            let ptr2 = cap_zombie_cap_get_capZombiePtr((*slot).cap) as Arc<cte_t>;
+            let ptr2 = Arc::from_raw(cap_zombie_cap_get_capZombiePtr((*slot).cap) as *mut cte_t);
             if ptr == ptr2
                 && cap_zombie_cap_get_capZombieNumber((*slot).cap) == n
                 && cap_zombie_cap_get_capZombieType((*slot).cap) == type_
@@ -576,7 +578,7 @@ unsafe fn reduceZombie(slot: Arc<cte_t>, immediate: bool_t) -> u64 {
 
 // #[allow(unused_variables)]
 #[no_mangle]
-pub unsafe extern "C" fn cteDeleteOne(slot: Arc<cte_t>) {
+pub unsafe fn cteDeleteOne(slot: Arc<cte_t>) {
     let cap_type = cap_get_capType((*slot).cap);
     if cap_type != cap_tag_t::cap_null_cap as u64 {
         let final_ = isFinalCapability(slot);
@@ -586,21 +588,22 @@ pub unsafe extern "C" fn cteDeleteOne(slot: Arc<cte_t>) {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn insertNewCap(parent: Arc<cte_t>, slot: Arc<cte_t>, cap: cap_t) {
-    let next = mdb_node_get_mdbNext((*parent).cteMDBNode) as Arc<cte_t>;
+pub unsafe fn insertNewCap(parent: Arc<cte_t>, slot: Arc<cte_t>, cap: cap_t) {
+    let next = Arc::from_raw(mdb_node_get_mdbNext((*parent).cteMDBNode) as *mut cte_t);
     (*slot).cap = cap;
-    (*slot).cteMDBNode = mdb_node_new(next as u64, 1u64, 1u64, parent as u64);
-    if next as u64 != 0u64 {
-        mdb_node_ptr_set_mdbPrev(&mut (*next).cteMDBNode, slot as u64);
+    (*slot).cteMDBNode = mdb_node_new(Arc::as_ptr(&next) as u64, 1u64, 1u64, Arc::as_ptr(&parent) as u64);
+    if Arc::as_ptr(&next) as u64 != 0u64 {
+        mdb_node_ptr_set_mdbPrev(&mut (*next).cteMDBNode, Arc::as_ptr(&slot) as u64);
     }
-    mdb_node_ptr_set_mdbNext(&mut (*parent).cteMDBNode, slot as u64);
+    mdb_node_ptr_set_mdbNext(&mut (*parent).cteMDBNode, Arc::as_ptr(&slot) as u64);
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn setupReplyMaster(thread: Arc<tcb_t>) {
-    let slot = tcb_ptr_cte_ptr(thread, tcb_cnode_index::tcbReply as u64);
+pub unsafe fn setupReplyMaster(thread: &mut TaskHandle) {
+    let thread_ptr = get_ptr_from_handle!(thread);
+    let slot = tcb_ptr_cte_ptr(thread_ptr, tcb_cnode_index::tcbReply as u64);
     if cap_get_capType((*slot).cap) == cap_tag_t::cap_null_cap as u64 {
-        (*slot).cap = cap_reply_cap_new(1u64, thread as u64);
+        (*slot).cap = cap_reply_cap_new(1u64, thread_ptr as u64);
         (*slot).cteMDBNode = mdb_node_new(0, 0, 0, 0);
         mdb_node_ptr_set_mdbRevocable(&mut (*slot).cteMDBNode, 1u64);
         mdb_node_ptr_set_mdbFirstBadged(&mut (*slot).cteMDBNode, 1u64);
@@ -608,7 +611,7 @@ pub unsafe extern "C" fn setupReplyMaster(thread: Arc<tcb_t>) {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn isMDBParentOf(cte_a: Arc<cte_t>, cte_b: Arc<cte_t>) -> bool_t {
+pub unsafe fn isMDBParentOf(cte_a: Arc<cte_t>, cte_b: Arc<cte_t>) -> bool_t {
     if mdb_node_get_mdbRevocable((*cte_a).cteMDBNode) == 0u64 {
         return 0u64;
     }
@@ -635,9 +638,9 @@ pub unsafe extern "C" fn isMDBParentOf(cte_a: Arc<cte_t>, cte_b: Arc<cte_t>) -> 
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn ensureNoChildren(slot: Arc<cte_t>) -> u64 {
+pub unsafe fn ensureNoChildren(slot: Arc<cte_t>) -> u64 {
     if mdb_node_get_mdbNext((*slot).cteMDBNode) != 0u64 {
-        let next = mdb_node_get_mdbNext((*slot).cteMDBNode) as Arc<cte_t>;
+        let next = Arc::from_raw(mdb_node_get_mdbNext((*slot).cteMDBNode) as *mut cte_t);
         if isMDBParentOf(slot, next) != 0u64 {
             current_syscall_error.type_ = seL4_Error::seL4_RevokeFirst as u64;
             return exception::EXCEPTION_SYSCALL_ERROR as u64;
@@ -647,7 +650,7 @@ pub unsafe extern "C" fn ensureNoChildren(slot: Arc<cte_t>) -> u64 {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn ensureEmptySlot(slot: Arc<cte_t>) -> u64 {
+pub unsafe fn ensureEmptySlot(slot: Arc<cte_t>) -> u64 {
     if cap_get_capType((*slot).cap) != cap_tag_t::cap_null_cap as u64 {
         current_syscall_error.type_ = seL4_Error::seL4_DeleteFirst as u64;
         return exception::EXCEPTION_SYSCALL_ERROR as u64;
@@ -656,12 +659,12 @@ pub unsafe extern "C" fn ensureEmptySlot(slot: Arc<cte_t>) -> u64 {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn isFinalCapability(cte: Arc<cte_t>) -> bool_t {
+pub unsafe fn isFinalCapability(cte: Arc<cte_t>) -> bool_t {
     let mdb = (*cte).cteMDBNode;
     let prevIsSameObject: bool = if mdb_node_get_mdbPrev(mdb) == 0u64 {
         false
     } else {
-        let prev = mdb_node_get_mdbPrev(mdb) as Arc<cte_t>;
+        let prev = Arc::from_raw(mdb_node_get_mdbPrev(mdb) as *mut cte_t);
         sameObjectAs((*prev).cap, (*cte).cap) == 1u64
     };
     if prevIsSameObject {
@@ -670,14 +673,14 @@ pub unsafe extern "C" fn isFinalCapability(cte: Arc<cte_t>) -> bool_t {
         if mdb_node_get_mdbNext(mdb) == 0u64 {
             return 1u64;
         } else {
-            let next = mdb_node_get_mdbNext(mdb) as Arc<cte_t>;
+            let next = Arc::from_raw(mdb_node_get_mdbNext(mdb) as *mut cte_t);
             return sameObjectAs((*cte).cap, (*next).cap);
         }
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn slotCapLongRunningDelete(slot: Arc<cte_t>) -> bool_t {
+pub unsafe fn slotCapLongRunningDelete(slot: Arc<cte_t>) -> bool_t {
     let cap_type = cap_get_capType((*slot).cap);
     if cap_type == cap_tag_t::cap_null_cap as u64 || isFinalCapability(slot) == 0u64 {
         return 0u64;
@@ -692,30 +695,31 @@ pub unsafe extern "C" fn slotCapLongRunningDelete(slot: Arc<cte_t>) -> bool_t {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn getReceiveSlots(thread: *mut tcb_t, buffer: *mut u64) -> Arc<cte_t> {
+pub unsafe fn getReceiveSlots(thread: &mut TaskHandle, buffer: *mut u64) -> Arc<cte_t> {
+    let thread_ptr = get_ptr_from_handle!(thread);
     if buffer as u64 == 0u64 {
-        return 0u64 as Arc<cte_t>;
+        return Arc::from_raw(0u64 as *mut cte_t);
     }
     let ct = loadCapTransfer(buffer);
     let cptr = ct.ctReceiveRoot;
     let luc_ret = lookupCap(thread, cptr);
     if luc_ret.status != 0u64 {
-        return 0u64 as Arc<cte_t>;
+        return Arc::from_raw(0u64 as *mut cte_t);
     }
     let cnode = luc_ret.cap;
     let lus_ret = lookupTargetSlot(cnode, ct.ctReceiveIndex, ct.ctReceiveDepth);
     if lus_ret.status != 0u64 {
-        return 0u64 as Arc<cte_t>;
+        return Arc::from_raw(0u64 as *mut cte_t);
     }
     let slot = lus_ret.slot;
     if cap_get_capType((*slot).cap) != cap_tag_t::cap_null_cap as u64 {
-        return 0u64 as Arc<cte_t>;
+        return Arc::from_raw(0u64 as *mut cte_t);
     }
     slot
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn loadCapTransfer(buffer: *mut u64) -> cap_transfer_t {
+pub unsafe fn loadCapTransfer(buffer: *mut u64) -> cap_transfer_t {
     const offset: isize = (seL4_MsgMaxLength + seL4_MsgMaxExtraCaps as u64 + 2) as isize;
     capTransferFromWords(buffer.offset(offset))
 }

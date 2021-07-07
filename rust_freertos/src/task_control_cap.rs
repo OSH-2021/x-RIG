@@ -16,7 +16,7 @@ use crate::types::*;
 use crate::task_global::*;
 use crate::task_ipc::*;
 
-pub const MAX_CSlots: usize = 1024;
+pub const MAX_CSlots: usize = wordBits as usize;
 
 pub const L2_BITMAP_SIZE: usize = (256 + (1 << 6) - 1) / (1 << 6);
 extern "C" {
@@ -40,7 +40,7 @@ extern "C" {
 // TODO how to convert??
 // indeed we should have a lock on it
 static mut current_tcb_handle : TaskHandle = get_current_task_handle!();
-pub static mut ksCurThread: *mut tcb_t = get_tcb_from_handle_mut!(current_tcb_handle);  //  TODO->  CURRENT_TCB
+// pub static mut ksCurThread: get_ptr_from_handle!(get_current_task_handle!()): *mut tcb_t = get_tcb_from_handle_mut!(current_tcb_handle);  //  TODO->  CURRENT_TCB
 
 
 /* Task states returned by eTaskGetState. */
@@ -124,17 +124,17 @@ pub struct task_control_block {
     fault_handler : UBaseType, // used only once in qwq
     ipc_buffer : UBaseType, // 总觉得这个和stream buffer很像
     pub registers : [word_t; n_contextRegisters],
-    pub cspace_root: Option<cnode>,
+    pub cspace_root: Arc<RwLock<cnode>>,
 }
 
-// pub unsafe extern "C" fn suspend(target: *mut tcb_t) {
+// pub unsafe fn suspend(target: *mut tcb_t) {
 //     cancelIPC(target);
 //     setThreadState(target, TaskState::InActive);
 //     tcbSchedDequeue(target);
 // }
 
 // #[no_mangle]
-// pub unsafe extern "C" fn restart(target: *mut tcb_t) {
+// pub unsafe fn restart(target: *mut tcb_t) {
 //     if isBlocked(target) != 0 {
 //         cancelIPC(target);
 //         setupReplyMaster(target);
@@ -144,7 +144,7 @@ pub struct task_control_block {
 //     }
 // }
 // TODO
-// pub unsafe extern "C" fn setThreadState(tptr: *mut tcb_t, ts : TaskState) {
+// pub unsafe fn setThreadState(tptr: *mut tcb_t, ts : TaskState) {
 //     let tcbState = &mut (*tptr).task_state;
 //     thread_state_ptr_set_tsType(tcbState, ts); // sure to use sel4's function directly?
 //     scheduleTCB(tptr);
@@ -191,7 +191,7 @@ impl task_control_block {
             max_ctrl_prio: configMAX_PRIORITIES!(),
             ipc_buffer: 0,
             registers : [0; n_contextRegisters],
-            cspace_root: Some(cnode {
+            cspace_root: Arc::new(RwLock::new((cnode {
                 caps: [cte_t {
                     cap: cap_t {
                         words: [0, 0]
@@ -200,7 +200,7 @@ impl task_control_block {
                         words: [0, 0]
                     }
                 }; MAX_CSlots]
-            }),
+            }))),
         }
     }
 
@@ -851,8 +851,8 @@ impl TaskHandle {
         bufferSrcSlot: Arc<cte_t>,
         updateFlags: u64,
     ) -> u64 {
-        let target_tcb: &mut TCB = get_tcb_from_handle_mut!(self);
-        let target_ptr = target_tcb as *mut TCB;
+        let target_tcb = get_tcb_from_handle_mut!(self);
+        let target_ptr = get_ptr_from_handle!(self);
         // let tCap = cap_thread_cap_new(target_ptr as u64);  //  originally
         let tCap = cap_thread_cap_new(target_ptr as u64);  //  use *mut tcb_t and modify the function, in the function, use "as u64"
         //  Fault Handler
@@ -869,7 +869,7 @@ impl TaskHandle {
         }
         //  CTable
         if updateFlags & thread_control_flag::thread_control_update_space as u64 != 0u64 {
-            let rootSlot = tcb_ptr_cte_ptr(target_ptr, tcb_cnode_index::tcbCTable as u64);
+            let rootSlot = Arc::from_raw(tcb_ptr_cte_ptr(target_ptr, tcb_cnode_index::tcbCTable as u64));
             let e = cteDelete(rootSlot, 1u64);
             if e != 0u64 {
                 return e;
@@ -882,7 +882,7 @@ impl TaskHandle {
         }
         //  VTable
         if updateFlags & thread_control_flag::thread_control_update_space as u64 != 0u64 {
-            let rootSlot = tcb_ptr_cte_ptr(target_ptr, tcb_cnode_index::tcbVTable as u64);
+            let rootSlot = Arc::from_raw(tcb_ptr_cte_ptr(target_ptr, tcb_cnode_index::tcbVTable as u64));
             let e = cteDelete(rootSlot, 1u64);
             if e != 0u64 {
                 return e;
@@ -895,14 +895,14 @@ impl TaskHandle {
         }
         //  IPC Buffer
         if updateFlags & thread_control_flag::thread_control_update_ipc_buffer as u64 != 0u64 {
-            let bufferSlot = tcb_ptr_cte_ptr(target_ptr, tcb_cnode_index::tcbBuffer as u64);
+            let bufferSlot = Arc::from_raw(tcb_ptr_cte_ptr(target_ptr, tcb_cnode_index::tcbBuffer as u64));
             let e = cteDelete(bufferSlot, 1u64);
             if e != 0u64 {
                 return e;
             }
             target_tcb.set_ipc_buffer(bufferAddr);
             // Arch_setTCBIPCBuffer(target_ptr, bufferAddr);    //  not appear in source code?  TODO
-            if bufferSrcSlot as u64 != 0u64
+            if Arc::as_ptr(&bufferSrcSlot) as u64 != 0u64
                 && sameObjectAs(bufferCap, (*bufferSrcSlot).cap) != 0u64
                 && sameObjectAs(tCap, (*slot).cap) != 0u64
             {
@@ -924,10 +924,10 @@ impl TaskHandle {
         transferInteger: bool,
         transferArch: u64,
     ) -> u64 {
-        let dest_tcb: &mut TCB = get_tcb_from_handle_mut!(dest);
-        let src_tcb: &mut TCB = get_tcb_from_handle_mut!(src);
-        let dest_ptr = dest_tcb as *mut TCB;
-        let src_ptr = src_tcb as *mut TCB;
+        let dest_tcb = get_tcb_from_handle_mut!(dest);
+        let src_tcb = get_tcb_from_handle_mut!(src);
+        let dest_ptr = get_ptr_from_handle!(dest);
+        let src_ptr = get_ptr_from_handle!(src);
         if suspendSource != false {
             //  suspend(dest_ptr);  //  originally
             suspend_task(dest);
@@ -955,37 +955,43 @@ impl TaskHandle {
             }
         }
         Arch_postModifyRegisters(dest_ptr);
-        if dest_ptr == node_state!(ksCurThread) {
+        let current_cur = get_current_task_handle_mut!();
+        let current_ptr = get_ptr_from_handle!(current_cur);
+        if dest_ptr == node_state!(current_ptr) {
             // rescheduleRequired();
             // TODO reschedule
         }
         Arch_performTransfer(transferArch, src_ptr, dest_ptr)
     }
 
-    pub unsafe extern "C" fn invokeTCB_ReadRegisters(
+    pub unsafe fn invokeTCB_ReadRegisters(
         src: &mut Self,
         suspendSource: bool,
         n: u64,
         arch: u64,
         call: bool,
     ) -> u64 {
-        let src_tcb: &mut TCB = get_tcb_from_handle_mut!(src);
-        let src_ptr = src_tcb as *mut TCB;
-        let thread = node_state!(ksCurThread);
+        let src_ptr = get_ptr_from_handle!(src);
+        let current_cur = get_current_task_handle_mut!();
+        let current_ptr = get_ptr_from_handle!(current_cur);
+        let thread = node_state!(current_cur);
+        let thread_ptr = get_ptr_from_handle!(thread);
         if suspendSource != false { // 0u64 as false
             // suspend(src_tcb);
             suspend_task(src);
         }
-        let e = Arch_performTransfer(arch, src_ptr, node_state!(ksCurThread));
+        let current_cur = get_current_task_handle_mut!();
+        let current_ptr = get_ptr_from_handle!(current_cur);
+        let e = Arch_performTransfer(arch, src_ptr, node_state!(current_ptr));
         if e != 0u64 {
             return e;
         }
         if call != false {
-            let ipcBuffer = lookupIPCBuffer(true, thread);
+            let ipcBuffer = lookupIPCBuffer(true, thread_ptr);
             let mut i: usize = 0;
             while i < n as usize && i < n_frameRegisters && i < n_msgRegisters {
                 setRegister(
-                    thread,
+                    thread_ptr,
                     msgRegisters[i],
                     getRegister(src_ptr, frameRegisters[i]),
                 );
@@ -1004,7 +1010,7 @@ impl TaskHandle {
                 && i + n_frameRegisters < n_msgRegisters
             {
                 setRegister(
-                    thread,
+                    thread_ptr,
                     msgRegisters[i + n_frameRegisters],
                     getRegister(src_ptr, gpRegisters[i]),
                 );
@@ -1018,7 +1024,7 @@ impl TaskHandle {
                 }
             }
             setRegister(
-                thread,
+                thread_ptr,
                 msgInfoRegister,
                 wordFromMessageInfo(seL4_MessageInfo_new(0, 0, 0, (i + j) as u64)),
             );
@@ -1028,17 +1034,19 @@ impl TaskHandle {
         0u64
     }
 
-    pub unsafe extern "C" fn invokeTCB_WriteRegisters(
+    pub unsafe fn invokeTCB_WriteRegisters(
         dest: &mut Self,
         resumeTarget: bool,
         mut n: u64,
         arch: u64,
         buffer: *mut u64
     ) -> u64 {
-        let dest_tcb: &mut TCB = get_tcb_from_handle_mut!(dest);
-        let dest_ptr = dest_tcb as *mut TCB;
+        let dest_tcb = get_tcb_from_handle_mut!(dest);
+        let dest_ptr = get_ptr_from_handle!(dest);
 
-        let e = Arch_performTransfer(arch, node_state!(ksCurThread), dest_ptr);
+        let current_cur = get_current_task_handle_mut!();
+        let current_ptr = get_ptr_from_handle!(current_cur);
+        let e = Arch_performTransfer(arch, node_state!(current_ptr), dest_ptr);
         if e != 0u64 {
             return e;
         }
@@ -1079,7 +1087,7 @@ impl TaskHandle {
             // restart(dest_ptr);
             resume_task(dest);
         }
-        // if dest_ptr == node_state!(ksCurThread) {
+        // if dest_ptr == node_state!(get_ptr_from_handle!(get_current_task_handle!())) {
         if *dest == get_current_task_handle!() {
             // rescheduleRequired();
             // TODO reschedule
@@ -1088,7 +1096,7 @@ impl TaskHandle {
     }
 
     //  ???notification TODO
-    pub unsafe extern "C" fn invokeTCB_NotificationControl(
+    pub unsafe fn invokeTCB_NotificationControl(
         &mut self,// tcb: *mut tcb_t,
         ntfnPtr: *mut notification_t
     ) -> u64 {
@@ -1237,6 +1245,13 @@ macro_rules! get_tcb_from_handle_mut {
                 panic!("Task handle locked!");
             }
         }
+    };
+}
+
+#[macro_export]
+macro_rules! get_ptr_from_handle {  //  the raw pointer is unsafe
+    ($handle: expr) => {
+        (&mut *$handle.0.write().unwrap()) as *mut tcb_t
     };
 }
 

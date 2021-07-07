@@ -258,7 +258,7 @@ pub unsafe fn cap_get_capPtr(cap: cap_t) -> u64 {
     } else if ctag == cap_tag_t::cap_cnode_cap as u64 {
         return cap_cnode_cap_get_capCNodePtr(cap);
     } else if ctag == cap_tag_t::cap_thread_cap as u64 {
-        return Arc::as_ptr(&tcb_ptr_cte_ptr(cap_thread_cap_get_capTCBPtr(cap) as *mut tcb_t, 0)) as u64;
+        return cap_thread_cap_get_capTCBPtr(cap) as u64;
     } else if ctag == cap_tag_t::cap_zombie_cap as u64 {
         return cap_zombie_cap_get_capZombiePtr(cap);
     } else if ctag == cap_tag_t::cap_domain_cap as u64
@@ -295,8 +295,8 @@ pub fn isCapRevocable(derivedCap: cap_t, srcCap: cap_t) -> bool_t {
 }
 
 #[inline]
-pub fn tcb_ptr_cte_ptr(p: Arc<tcb_t>, i: u64) -> Arc<cte_t> {
-    Arc::from_raw((((unsafe {Arc::as_ptr(&p)} as u64) & (!MASK!(seL4_TCBBits))) as *mut cte_t).offset(i as isize))
+pub unsafe fn tcb_ptr_cte_ptr(p: *mut tcb_t, i: u64) -> *mut cte_t {
+    ((p as u64 & (!MASK!(seL4_TCBBits))) as *mut cte_t).offset(i as isize)
 }
 
 // include/object/tcb.h 因为不想翻译tcb.h整个文件所以就放这里了
@@ -358,7 +358,7 @@ const seL4_MsgExtraCapBits: usize = 2;
 pub const seL4_MsgMaxExtraCaps: usize = (1usize << seL4_MsgExtraCapBits) - 1;
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct extra_caps {
     pub excaprefs: [cte_ptr_t; seL4_MsgMaxExtraCaps],
 }
@@ -583,7 +583,7 @@ pub enum invocation_label {
 }
 
 //  cap
-pub unsafe extern "C" fn deriveCap(slot: Arc<cte_t>, cap: cap_t) -> deriveCap_ret_t {
+pub unsafe fn deriveCap(slot: Arc<cte_t>, cap: cap_t) -> deriveCap_ret_t {
     if isArchCap(cap) != 0u64 {
         // return Arch_deriveCap(slot, cap);    //  TODO extern "C"
     }
@@ -620,7 +620,7 @@ pub unsafe extern "C" fn deriveCap(slot: Arc<cte_t>, cap: cap_t) -> deriveCap_re
     }
 }
 
-pub unsafe extern "C" fn updateCapData(preserve: bool_t, newData: u64, cap: cap_t) -> cap_t {
+pub unsafe fn updateCapData(preserve: bool_t, newData: u64, cap: cap_t) -> cap_t {
     if isArchCap(cap) != 0u64 {
         // return Arch_updateCapData(preserve, newData, cap);   //  TODO extern "C"
     }
@@ -652,7 +652,7 @@ pub unsafe extern "C" fn updateCapData(preserve: bool_t, newData: u64, cap: cap_
     cap
 }
 
-pub extern "C" fn hasCancelSendRights(cap: cap_t) -> bool_t {
+pub fn hasCancelSendRights(cap: cap_t) -> bool_t {
     if cap_get_capType(cap) == cap_tag_t::cap_endpoint_cap as u64 {
         return (cap_endpoint_cap_get_capCanSend(cap) != 0u64
             && cap_endpoint_cap_get_capCanReceive(cap) != 0u64
