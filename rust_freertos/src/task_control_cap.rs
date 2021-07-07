@@ -851,62 +851,61 @@ impl TaskHandle {
         bufferSrcSlot: Arc<cte_t>,
         updateFlags: u64,
     ) -> u64 {
-        let target_tcb = get_tcb_from_handle_mut!(self);
         let target_ptr = get_ptr_from_handle!(self);
         // let tCap = cap_thread_cap_new(target_ptr as u64);  //  originally
         let tCap = cap_thread_cap_new(target_ptr as u64);  //  use *mut tcb_t and modify the function, in the function, use "as u64"
         //  Fault Handler
         if updateFlags & thread_control_flag::thread_control_update_space as u64 != 0u64 {
-            target_tcb.set_fault_handler(faultep);
+            get_tcb_from_handle_mut!(self).set_fault_handler(faultep);
         }
         //  Max Control Priority
         if updateFlags & thread_control_flag::thread_control_update_mcp as u64 != 0u64 {
-            target_tcb.set_MCPriority(mcp);
+            get_tcb_from_handle_mut!(self).set_MCPriority(mcp);
         }
         //  Priority
         if updateFlags & thread_control_flag::thread_control_update_priority as u64 != 0u64 {
-            target_tcb.set_priority(priority);
+            get_tcb_from_handle_mut!(self).set_priority(priority);
         }
         //  CTable
         if updateFlags & thread_control_flag::thread_control_update_space as u64 != 0u64 {
             let rootSlot = Arc::from_raw(tcb_ptr_cte_ptr(target_ptr, tcb_cnode_index::tcbCTable as u64));
-            let e = cteDelete(rootSlot, 1u64);
+            let e = cteDelete(rootSlot.clone(), 1u64);
             if e != 0u64 {
                 return e;
             }
             if sameObjectAs(cRoot_newCap, (*cRoot_srcSlot).cap) != 0u64
                 && sameObjectAs(tCap, (*slot).cap) != 0u64
             {
-                cteInsert(cRoot_newCap, cRoot_srcSlot, rootSlot);
+                cteInsert(cRoot_newCap, cRoot_srcSlot, rootSlot.clone());
             }
         }
         //  VTable
         if updateFlags & thread_control_flag::thread_control_update_space as u64 != 0u64 {
             let rootSlot = Arc::from_raw(tcb_ptr_cte_ptr(target_ptr, tcb_cnode_index::tcbVTable as u64));
-            let e = cteDelete(rootSlot, 1u64);
+            let e = cteDelete(rootSlot.clone(), 1u64);
             if e != 0u64 {
                 return e;
             }
             if sameObjectAs(vRoot_newCap, (*vRoot_srcSlot).cap) != 0u64
                 && sameObjectAs(tCap, (*slot).cap) != 0u64
             {
-                cteInsert(vRoot_newCap, vRoot_srcSlot, rootSlot);
+                cteInsert(vRoot_newCap, vRoot_srcSlot, rootSlot.clone());
             }
         }
         //  IPC Buffer
         if updateFlags & thread_control_flag::thread_control_update_ipc_buffer as u64 != 0u64 {
             let bufferSlot = Arc::from_raw(tcb_ptr_cte_ptr(target_ptr, tcb_cnode_index::tcbBuffer as u64));
-            let e = cteDelete(bufferSlot, 1u64);
+            let e = cteDelete(bufferSlot.clone(), 1u64);
             if e != 0u64 {
                 return e;
             }
-            target_tcb.set_ipc_buffer(bufferAddr);
+            get_tcb_from_handle_mut!(self).set_ipc_buffer(bufferAddr);
             // Arch_setTCBIPCBuffer(target_ptr, bufferAddr);    //  not appear in source code?  TODO
             if Arc::as_ptr(&bufferSrcSlot) as u64 != 0u64
                 && sameObjectAs(bufferCap, (*bufferSrcSlot).cap) != 0u64
                 && sameObjectAs(tCap, (*slot).cap) != 0u64
             {
-                cteInsert(bufferCap, bufferSrcSlot, bufferSlot);
+                cteInsert(bufferCap, bufferSrcSlot, bufferSlot.clone());
             }
             if self == &get_current_task_handle!() {
                 // rescheduleRequired();
@@ -924,8 +923,6 @@ impl TaskHandle {
         transferInteger: bool,
         transferArch: u64,
     ) -> u64 {
-        let dest_tcb = get_tcb_from_handle_mut!(dest);
-        let src_tcb = get_tcb_from_handle_mut!(src);
         let dest_ptr = get_ptr_from_handle!(dest);
         let src_ptr = get_ptr_from_handle!(src);
         if suspendSource != false {
@@ -1041,7 +1038,6 @@ impl TaskHandle {
         arch: u64,
         buffer: *mut u64
     ) -> u64 {
-        let dest_tcb = get_tcb_from_handle_mut!(dest);
         let dest_ptr = get_ptr_from_handle!(dest);
 
         let current_cur = get_current_task_handle_mut!();
@@ -1251,7 +1247,13 @@ macro_rules! get_tcb_from_handle_mut {
 #[macro_export]
 macro_rules! get_ptr_from_handle {  //  the raw pointer is unsafe
     ($handle: expr) => {
-        (&mut *$handle.0.write().unwrap()) as *mut tcb_t
+        match $handle.0.write() {
+            Ok(mut a) => &mut *a as *mut tcb_t,
+            Err(_) => {
+                warn!("TCB was locked, write failed");
+                panic!("Task handle locked!");
+            }
+        }
     };
 }
 

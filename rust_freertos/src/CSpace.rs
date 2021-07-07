@@ -57,7 +57,7 @@ extern "C" {
     static mut current_lookup_fault: lookup_fault_t;
 }
 
-    pub fn lookupCap(thread: &mut TaskHandle, cPtr: u64) -> lookupCap_ret_t {
+    pub unsafe fn lookupCap(thread: &mut TaskHandle, cPtr: u64) -> lookupCap_ret_t {
         let mut lu_ret = lookupSlot(thread, cPtr);
         if lu_ret.status != 0u64 {
             return lookupCap_ret_t {
@@ -71,7 +71,7 @@ extern "C" {
         }
     }
 
-    pub fn lookupSlot(thread: &mut TaskHandle, capptr: u64) -> lookupSlot_raw_ret_t {
+    pub unsafe fn lookupSlot(thread: &mut TaskHandle, capptr: u64) -> lookupSlot_raw_ret_t {
         let thread_ptr = get_ptr_from_handle!(thread);
         let threadRoot = (*tcb_ptr_cte_ptr(thread_ptr, tcb_cnode_index::tcbCTable as u64)).cap;
         let res_ret = resolveAddressBits(threadRoot, capptr, wordBits);
