@@ -15,6 +15,7 @@ pub enum FreeRtosError {
     ProcessorHasShutDown,
     DeadLocked,
     PortError,
+    Ajkaierdja
 }
 
 #[macro_export]
