@@ -65,6 +65,19 @@ pub struct task_control_block {
 pub type TCB = task_control_block;
 pub type Task = task_control_block;
 impl task_control_block {
+    pub fn set_notify_state(&mut self, notify_state:u8){
+        self.notify_state = notify_state;
+    }
+    pub fn set_notify_value(&mut self, notified_value:u32){
+        self.notified_value = notified_value;
+    }
+    pub fn get_notify_state(&self) -> u8{
+        self.notify_state 
+    }
+    pub fn get_notify_value(&self)->u32{
+        self.notified_value 
+    }
+
     pub fn new() -> Self {
         task_control_block {
             state_list_item: Default::default(),
