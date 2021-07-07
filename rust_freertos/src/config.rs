@@ -71,3 +71,24 @@ macro_rules! configEXPECTED_IDLE_TIME_BEFORE_SLEEP {
         2
     };
 }
+
+#[macro_export]
+macro_rules! taskNOTIFICATION_RECEIVED {
+    () => {
+        2
+    };
+}
+
+#[macro_export]
+macro_rules! taskWAITING_NOTIFICATION {
+    () => {
+        1
+    };
+}
+
+#[macro_export]
+macro_rules! taskNOT_WAITING_NOTIFICATION {
+    () => {
+        0
+    };
+}
