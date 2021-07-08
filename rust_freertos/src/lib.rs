@@ -33,8 +33,8 @@ mod task_queue;
 //mod mutex;
 pub mod semaphore;
 pub mod task_timemanager;
-#[cfg(feature = "configUSE_CAPS")]
-pub mod seL4;
+// #[cfg(feature = "configUSE_CAPS")]
+// pub mod seL4;
 #[cfg(feature = "configUSE_CAPS")]
 pub mod CNode;
 #[cfg(feature = "configUSE_CAPS")]

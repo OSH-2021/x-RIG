@@ -660,3 +660,93 @@ pub fn hasCancelSendRights(cap: cap_t) -> bool_t {
     }
     0u64
 }
+
+pub unsafe extern "C" fn finaliseCap(
+    cap: cap_t,
+    final_: bool_t,
+    exposed: bool_t,
+) -> finaliseCap_ret_t {
+    if isArchCap(cap) != 0u64 {
+        return Arch_finaliseCap(cap, final_);
+    }
+    let cap_type = cap_get_capType(cap);
+    if cap_type == cap_tag_t::cap_endpoint_cap as u64 {
+        if final_ != 0u64 {
+            cancelAllIPC(cap_endpoint_cap_get_capEPPtr(cap) as *mut endpoint_t)
+        }
+        return finaliseCap_ret_t {
+            remainder: cap_null_cap_new(),
+            cleanupInfo: cap_null_cap_new(),
+        };
+    } else if cap_type == cap_tag_t::cap_notification_cap as u64 {
+        if final_ != 0u64 {
+            let ntfn = cap_notification_cap_get_capNtfnPtr(cap) as *mut notification_t;
+            unbindMaybeNotification(ntfn);
+            cancelAllSignals(ntfn);
+        }
+        return finaliseCap_ret_t {
+            remainder: cap_null_cap_new(),
+            cleanupInfo: cap_null_cap_new(),
+        };
+    } else if cap_type == cap_tag_t::cap_reply_cap as u64
+        || cap_type == cap_tag_t::cap_null_cap as u64
+        || cap_type == cap_tag_t::cap_domain_cap as u64
+    {
+        return finaliseCap_ret_t {
+            remainder: cap_null_cap_new(),
+            cleanupInfo: cap_null_cap_new(),
+        };
+    }
+    if exposed != 0u64 {
+        panic!("finaliseCap: failed to finalise immediately.");
+    }
+    if cap_type == cap_tag_t::cap_cnode_cap as u64 {
+        if final_ != 0u64 {
+            return finaliseCap_ret_t {
+                remainder: Zombie_new(
+                    1u64 << cap_cnode_cap_get_capCNodeRadix(cap),
+                    cap_cnode_cap_get_capCNodeRadix(cap),
+                    cap_cnode_cap_get_capCNodePtr(cap),
+                ),
+                cleanupInfo: cap_null_cap_new(),
+            };
+        }
+    } else if cap_type == cap_tag_t::cap_thread_cap as u64 {
+        if final_ != 0u64 {
+            let tcb = cap_thread_cap_get_capTCBPtr(cap) as *mut tcb_t;
+            //ignore smp
+            let cte_ptr = tcb_ptr_cte_ptr(tcb, tcb_cnode_index::tcbCTable as u64);
+            unbindNotification(tcb);
+            suspend(tcb);
+            //debug
+            tcbDebugRemove(tcb);
+            Arch_prepareThreadDelete(tcb);
+            return finaliseCap_ret_t {
+                remainder: Zombie_new(
+                    tcb_arch_cnode_index::tcbArchCNodeEntries as u64,
+                    ZombieType_ZombieTCB,
+                    cte_ptr as u64,
+                ),
+                cleanupInfo: cap_null_cap_new(),
+            };
+        }
+    } else if cap_type == cap_tag_t::cap_zombie_cap as u64 {
+        return finaliseCap_ret_t {
+            remainder: cap,
+            cleanupInfo: cap_null_cap_new(),
+        };
+    } else if cap_type == cap_tag_t::cap_irq_handler_cap as u64 {
+        if final_ != 0u64 {
+            let irq = cap_irq_handler_cap_get_capIRQ(cap) as u8;
+            deletedIRQHandler(irq);
+            return finaliseCap_ret_t {
+                remainder: cap_null_cap_new(),
+                cleanupInfo: cap,
+            };
+        }
+    }
+    finaliseCap_ret_t {
+        remainder: cap_null_cap_new(),
+        cleanupInfo: cap_null_cap_new(),
+    }
+}

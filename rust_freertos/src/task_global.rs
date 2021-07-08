@@ -389,3 +389,11 @@ macro_rules! switch_delayed_lists {
         }
     };
 }
+
+#[macro_export]
+#[cfg(not(smp))]
+macro_rules! node_state {
+    ($i:ident) => {
+        $i
+    };
+}
