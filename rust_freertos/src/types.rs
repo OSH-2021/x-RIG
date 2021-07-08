@@ -38,7 +38,7 @@ pub struct mdb_node_t {
     pub words: [u64; 2],
 }
 
-//  Cap Table Entry
+//  Cap Table Entry, commonly called slot
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct cte_t {
     pub cap: cap_t,
@@ -356,7 +356,7 @@ pub struct pte_range {
     length: word_t,
 }
 pub type pte_range_t = pte_range;
-pub type cte_ptr_t = *mut cte_t;
+pub type cte_ptr_t = Box<cte_t>;
 
 const seL4_MsgExtraCapBits: usize = 2;
 pub const seL4_MsgMaxExtraCaps: usize = (1usize << seL4_MsgExtraCapBits) - 1;
