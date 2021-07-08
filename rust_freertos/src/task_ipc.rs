@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use crate::task_control_cap::*;
 use crate::types::*;
 use crate::arch_structures_TCB::*;
@@ -25,15 +25,15 @@ impl TaskHandle {
         let callerSlot = tcb_ptr_cte_ptr(receiver_ptr, tcb_cnode_index::tcbCaller as u64);
         cteInsert(
             cap_reply_cap_new(0u64, sender_ptr as u64),
-            Arc::from_raw(replySlot),
-            Arc::from_raw(callerSlot),
+            Arc::new(RwLock::new(*replySlot)),
+            Arc::new(RwLock::new(*callerSlot)),
         );
     }
 
 pub unsafe fn deleteCallerCap(receiver: &mut Self) {
     let receiver_ptr = get_ptr_from_handle!(receiver);
     let callerSlot = tcb_ptr_cte_ptr(receiver_ptr, tcb_cnode_index::tcbCaller as u64);
-    cteDeleteOne(Arc::from_raw(callerSlot));
+    cteDeleteOne(Arc::new(RwLock::new(*callerSlot)));
 }
 
 // pub unsafe fn lookupExtraCaps(

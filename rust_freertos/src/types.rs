@@ -596,7 +596,7 @@ pub unsafe fn deriveCap(slot: Arc<cte_t>, cap: cap_t) -> deriveCap_ret_t {
             cap: cap_null_cap_new(),
         };
     } else if cap_type == cap_tag_t::cap_untyped_cap as u64 {
-        let status = ensureNoChildren(slot);
+        let status = ensureNoChildren(Arc::new(RwLock::new(*slot)));
         if status != 0u64 {
             return deriveCap_ret_t {
                 status: status,

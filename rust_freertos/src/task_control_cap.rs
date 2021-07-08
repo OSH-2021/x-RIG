@@ -39,7 +39,7 @@ extern "C" {
 }
 // TODO how to convert??
 // indeed we should have a lock on it
-static mut current_tcb_handle : TaskHandle = get_current_task_handle!();
+// static mut current_tcb_handle : TaskHandle = get_current_task_handle!();
 // pub static mut ksCurThread: get_ptr_from_handle!(get_current_task_handle!()): *mut tcb_t = get_tcb_from_handle_mut!(current_tcb_handle);  //  TODO->  CURRENT_TCB
 
 
@@ -869,33 +869,33 @@ impl TaskHandle {
         //  CTable
         if updateFlags & thread_control_flag::thread_control_update_space as u64 != 0u64 {
             let rootSlot = Arc::from_raw(tcb_ptr_cte_ptr(target_ptr, tcb_cnode_index::tcbCTable as u64));
-            let e = cteDelete(rootSlot.clone(), 1u64);
+            let e = cteDelete(Arc::new(RwLock::new(*rootSlot.clone())), 1u64);
             if e != 0u64 {
                 return e;
             }
             if sameObjectAs(cRoot_newCap, (*cRoot_srcSlot).cap) != 0u64
                 && sameObjectAs(tCap, (*slot).cap) != 0u64
             {
-                cteInsert(cRoot_newCap, cRoot_srcSlot, rootSlot.clone());
+                cteInsert(cRoot_newCap, Arc::new(RwLock::new(*cRoot_srcSlot.clone())), Arc::new(RwLock::new(*rootSlot.clone())));
             }
         }
         //  VTable
         if updateFlags & thread_control_flag::thread_control_update_space as u64 != 0u64 {
             let rootSlot = Arc::from_raw(tcb_ptr_cte_ptr(target_ptr, tcb_cnode_index::tcbVTable as u64));
-            let e = cteDelete(rootSlot.clone(), 1u64);
+            let e = cteDelete(Arc::new(RwLock::new(*rootSlot.clone())), 1u64);
             if e != 0u64 {
                 return e;
             }
             if sameObjectAs(vRoot_newCap, (*vRoot_srcSlot).cap) != 0u64
                 && sameObjectAs(tCap, (*slot).cap) != 0u64
             {
-                cteInsert(vRoot_newCap, vRoot_srcSlot, rootSlot.clone());
+                cteInsert(vRoot_newCap, Arc::new(RwLock::new(*vRoot_srcSlot.clone())), Arc::new(RwLock::new(*rootSlot.clone())));
             }
         }
         //  IPC Buffer
         if updateFlags & thread_control_flag::thread_control_update_ipc_buffer as u64 != 0u64 {
             let bufferSlot = Arc::from_raw(tcb_ptr_cte_ptr(target_ptr, tcb_cnode_index::tcbBuffer as u64));
-            let e = cteDelete(bufferSlot.clone(), 1u64);
+            let e = cteDelete(Arc::new(RwLock::new(*bufferSlot.clone())), 1u64);
             if e != 0u64 {
                 return e;
             }
@@ -905,7 +905,7 @@ impl TaskHandle {
                 && sameObjectAs(bufferCap, (*bufferSrcSlot).cap) != 0u64
                 && sameObjectAs(tCap, (*slot).cap) != 0u64
             {
-                cteInsert(bufferCap, bufferSrcSlot, bufferSlot.clone());
+                cteInsert(bufferCap, Arc::new(RwLock::new(*bufferSrcSlot.clone())), Arc::new(RwLock::new(*bufferSlot.clone())));
             }
             if self == &get_current_task_handle!() {
                 // rescheduleRequired();
