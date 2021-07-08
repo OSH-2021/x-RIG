@@ -16,13 +16,6 @@ use crate::types::*;
 use crate::task_global::*;
 use crate::task_ipc::*;
 
-#[macro_export]
-#[cfg(not(smp))]
-macro_rules! node_state {
-    ($i:ident) => {
-        $i
-    };
-}
 
 pub const MAX_CSlots: usize = wordBits as usize;
 
@@ -68,7 +61,7 @@ pub enum TaskState {
     BlockedOnNotificn,                  //  seL4
     Idle,                               //  seL4
 }
- pub type _thread_state = TaskState;
+pub type _thread_state = TaskState;
 
 pub enum thread_control_flag {
     thread_control_update_priority = 0x1,
@@ -132,7 +125,7 @@ pub struct task_control_block {
     fault_handler : UBaseType, // used only once in qwq
     ipc_buffer : UBaseType, // 总觉得这个和stream buffer很像
     pub registers : [word_t; n_contextRegisters],
-    pub cspace_root: Arc<RwLock<cnode>>,
+    pub ctable: Arc<RwLock<CTable>>,
 }
 
 // pub unsafe fn suspend(target: *mut tcb_t) {
@@ -199,7 +192,7 @@ impl task_control_block {
             max_ctrl_prio: configMAX_PRIORITIES!(),
             ipc_buffer: 0,
             registers : [0; n_contextRegisters],
-            cspace_root: Arc::new(RwLock::new((cnode {
+            ctable: Arc::new(RwLock::new((CTable {
                 caps: [cte_t {
                     cap: cap_t {
                         words: [0, 0]
