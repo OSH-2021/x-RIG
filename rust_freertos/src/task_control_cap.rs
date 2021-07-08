@@ -16,6 +16,14 @@ use crate::types::*;
 use crate::task_global::*;
 use crate::task_ipc::*;
 
+#[macro_export]
+#[cfg(not(smp))]
+macro_rules! node_state {
+    ($i:ident) => {
+        $i
+    };
+}
+
 pub const MAX_CSlots: usize = wordBits as usize;
 
 pub const L2_BITMAP_SIZE: usize = (256 + (1 << 6) - 1) / (1 << 6);
