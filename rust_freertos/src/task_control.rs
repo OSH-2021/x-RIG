@@ -72,10 +72,10 @@ impl task_control_block {
         self.notified_value = notified_value;
     }
     pub fn get_notify_state(&self) -> u8{
-        self.notify_state 
+        self.notify_state
     }
     pub fn get_notify_value(&self)->u32{
-        self.notified_value 
+        self.notified_value
     }
 
     pub fn new() -> Self {

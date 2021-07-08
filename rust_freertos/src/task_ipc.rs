@@ -56,11 +56,11 @@ pub unsafe fn lookupExtraCaps(
             current_fault = seL4_Fault_CapFault_new(cptr, 0u64);
             return lu_ret.status;
         }
-        current_extra_caps.excaprefs[i] = lu_ret.slot;
+        current_extra_caps.excaprefs[i] = Arc::as_ptr(&lu_ret.slot) as *mut cte_t;
         i += 1;
     }
     if i < seL4_MsgMaxExtraCaps {
-        current_extra_caps.excaprefs[i] = Arc::from_raw(0u64 as *mut cte_t);
+        current_extra_caps.excaprefs[i] = 0u64 as *mut cte_t;
     }
     0u64
 }
