@@ -9,6 +9,7 @@
 
 use crate::arch_structures_TCB::*;
 use crate::task_control_cap::*;
+use crate::task_global::*;
 use crate::types::*;
 use std::sync::Arc;
 use crate::*;
@@ -44,7 +45,6 @@ pub struct lookupSlot_ret_t {
     pub slot: Arc<cte_t>,
 }
 
-#[repr(C)]
 #[derive(Clone)]
 pub struct resolveAddressBits_ret_t {
     pub status: u64,
@@ -53,8 +53,6 @@ pub struct resolveAddressBits_ret_t {
 }
 
 extern "C" {
-    static mut current_syscall_error: syscall_error_t;
-    static mut current_lookup_fault: lookup_fault_t;
 }
 
     pub unsafe fn lookupCap(thread: &mut TaskHandle, cPtr: u64) -> lookupCap_ret_t {
@@ -74,7 +72,7 @@ extern "C" {
     pub unsafe fn lookupSlot(thread: &mut TaskHandle, capptr: u64) -> lookupSlot_raw_ret_t {
         let thread_ptr = get_ptr_from_handle!(thread);
         let threadRoot = (*tcb_ptr_cte_ptr(thread_ptr, tcb_cnode_index::tcbCTable as u64)).cap;
-        let res_ret = resolveAddressBits(threadRoot, capptr, wordBits);
+        let res_ret = resolveAddressBits(thread, threadRoot, capptr, wordBits);
         lookupSlot_raw_ret_t {
             status: res_ret.status,
             slot: res_ret.slot,
@@ -101,6 +99,7 @@ pub unsafe fn lookupCapAndSlot(thread: &mut TaskHandle, cPtr: u64) -> lookupCapA
 
 #[no_mangle]
 pub unsafe fn lookupSlotForCNodeOp(
+    thread: &mut TaskHandle,
     isSource: bool_t,
     root: cap_t,
     capptr: u64,
@@ -126,7 +125,7 @@ pub unsafe fn lookupSlotForCNodeOp(
         };
     }
 
-    let res_ret = resolveAddressBits(root, capptr, depth);
+    let res_ret = resolveAddressBits(thread, root, capptr, depth);
     if res_ret.status != 0u64 {
         current_syscall_error.type_ = seL4_Error::seL4_FailedLookup as u64;
         current_syscall_error.failedLookupWasSource = isSource;
@@ -150,28 +149,28 @@ pub unsafe fn lookupSlotForCNodeOp(
     }
 }
 
-#[no_mangle]
-pub unsafe fn lookupSourceSlot(
-    root: cap_t,
-    capptr: u64,
-    depth: u64,
-) -> lookupSlot_ret_t {
-    lookupSlotForCNodeOp(1u64, root, capptr, depth)
-}
+// #[no_mangle]
+// pub unsafe fn lookupSourceSlot(
+//     root: cap_t,
+//     capptr: u64,
+//     depth: u64,
+// ) -> lookupSlot_ret_t {
+//     lookupSlotForCNodeOp(1u64, root, capptr, depth)
+// }
 
-#[no_mangle]
-pub unsafe fn lookupTargetSlot(
-    root: cap_t,
-    capptr: u64,
-    depth: u64,
-) -> lookupSlot_ret_t {
-    lookupSlotForCNodeOp(0u64, root, capptr, depth)
-}
+// #[no_mangle]
+// pub unsafe fn lookupTargetSlot(
+//     root: cap_t,
+//     capptr: u64,
+//     depth: u64,
+// ) -> lookupSlot_ret_t {
+//     lookupSlotForCNodeOp(0u64, root, capptr, depth)
+// }
 
-#[no_mangle]
-pub unsafe fn lookupPivotSlot(root: cap_t, capptr: u64, depth: u64) -> lookupSlot_ret_t {
-    lookupSlotForCNodeOp(1u64, root, capptr, depth)
-}
+// #[no_mangle]
+// pub unsafe fn lookupPivotSlot(root: cap_t, capptr: u64, depth: u64) -> lookupSlot_ret_t {
+//     lookupSlotForCNodeOp(1u64, root, capptr, depth)
+// }
 
 macro_rules! MASK {
     ($x:expr) => {
@@ -181,17 +180,20 @@ macro_rules! MASK {
 
 #[no_mangle]
 pub unsafe fn resolveAddressBits(
+    handle: &mut TaskHandle,
     mut nodeCap: cap_t,
     capptr: u64,
     mut n_bits: u64,
 ) -> resolveAddressBits_ret_t {
     let mut ret = resolveAddressBits_ret_t {
         status: 0u64,
-        slot: Arc::from_raw(null_mut()),
+        slot: unsafe {Arc::from_raw(null_mut())},
         bitsRemaining: n_bits,
     };
     if cap_get_capType(nodeCap) != cap_tag_t::cap_cnode_cap as u64 {
-        current_lookup_fault = lookup_fault_invalid_root_new();
+        unsafe {
+            current_lookup_fault = lookup_fault_invalid_root_new();
+        }
         ret.status = exception::EXCEPTION_LOOKUP_FAULT as u64;
         return ret;
     }
@@ -203,12 +205,16 @@ pub unsafe fn resolveAddressBits(
         let capGuard = cap_cnode_cap_get_capCNodeGuard(nodeCap);
         let guard: u64 = (capptr >> ((n_bits - guardBits) & MASK!(wordRadix))) & MASK!(guardBits);
         if guardBits > n_bits || guard != capGuard {
-            current_lookup_fault = lookup_fault_guard_mismatch_new(capGuard, n_bits, guardBits);
+            unsafe {
+                current_lookup_fault = lookup_fault_guard_mismatch_new(capGuard, n_bits, guardBits);
+            }
             ret.status = exception::EXCEPTION_LOOKUP_FAULT as u64;
             return ret;
         }
         if levelBits > n_bits {
-            current_lookup_fault = lookup_fault_depth_mismatch_new(levelBits, n_bits);
+            unsafe {
+                current_lookup_fault = lookup_fault_depth_mismatch_new(levelBits, n_bits);
+            }
             ret.status = exception::EXCEPTION_LOOKUP_FAULT as u64;
             return ret;
         }
