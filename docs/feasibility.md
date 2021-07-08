@@ -380,3 +380,12 @@ Rust引入了独特的语言机制，可以在编译期进行内存安全检查�
 - [Ownership is Theft: Experiences Building an Embedded OS in Rust](https://www.tockos.org/assets/papers/tock-plos2015.pdf)
 - [OS in Rust](https://www.infoq.com/presentations/os-rust/)
 - [seL4 manual](https://sel4.systems/Info/Docs/seL4-manual-latest.pdf)
+
+参考文献：
+[1]Amit Levy, Michael P Andersen, Bradford Campbell, David Culler,Prabal Dutta, Branden Ghena, Philip Levis and Pat Pannuto. Ownership is Theft: Experiences Building an Embedded OS in Rust
+[2]Is It Time to Rewrite the Operating System in Rust?
+[3]Dongkyu Jung; Daejin Park. Real Time Sensor Signal Processing Techniques Using Symmetric Dual-Bank Buffer on FreeRTOS
+[4]Hsuan Hsu; Chih-Wen Hsueh. FreeRTOS Porting on x86 Platform
+[5]Trustworthy Systems Team, Data61. seL4 Reference Manual
+[6]Tomas Docekal; Zdenek Slanina. Control system based on FreeRTOS for data acquisition and distribution on swarm robotics platform
+[7]Gessé Oliveira; George Lima. Evaluation of Scheduling Algorithms for Embedded FreeRTOS-based Systems
