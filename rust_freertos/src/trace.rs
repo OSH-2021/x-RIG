@@ -440,7 +440,9 @@ macro_rules! traceTASK_NOTIFY_TAKE {
 
 #[macro_export]
 macro_rules! traceTASK_NOTIFY_WAIT_BLOCK {
-    () => {};
+    () => {
+        trace!("Task is block out of waiting for notification.")
+    };
 }
 
 #[macro_export]
@@ -480,30 +482,38 @@ macro_rules! traceSTREAM_BUFFER_RESET {
 
 #[macro_export]
 macro_rules! traceSTREAM_BUFFER_SEND {
-    ($xStreamBuffer:expr, $xReturn:expr) => { 
+    () => { 
+        trace!("sender is sending....");
     };
 }
 
 #[macro_export]
 macro_rules! traceSTREAM_BUFFER_SEND_FAILED {
-    ($xStreamBuffer:expr) => {};
+    ($xStreamBuffer:expr) => {
+        trace!("The send fails!");
+    };
 }
 
 
 #[macro_export]
 macro_rules! traceBLOCKING_ON_STREAM_BUFFER_RECEIVE {
-    ($xStreamBuffer:expr) => {};
+    ($xStreamBuffer:expr) => {
+        trace!("Receiver is waiting for message....");
+    };
 }
 
 
 #[macro_export]
 macro_rules! traceSTREAM_BUFFER_RECEIVE {
-    ($xStreamBuffer:expr, $xReturn:expr) => { 
+    ($xReturn:expr) => { 
+        trace!("The receiver receive {} byte(s)", $xReturn);
     };
 }
 
 
 #[macro_export]
 macro_rules! traceSTREAM_BUFFER_RECEIVE_FAILED {
-    ($xStreamBuffer:expr) => {};
+    () => {
+        trace!("The receive fails!");
+    };
 }
