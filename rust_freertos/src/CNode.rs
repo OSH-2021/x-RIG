@@ -14,7 +14,7 @@ use std::sync::{Arc, RwLock};
 use std::ptr::*;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct cnode {
+pub struct CTable {
     pub caps: [cte_t; MAX_CSlots],
 }
 
@@ -373,7 +373,7 @@ pub unsafe fn cteInsert(newCap: cap_t, srcSlot: Arc<RwLock<cte_t>>, destSlot: Ar
     setUntypedCapAsFull(srcCap, newCap, srcSlot.clone());
     // (*destSlot).cap = newCap;
     destSlot.write().unwrap().cap = newCap;
-    // (*destSlot).cteMDBNode = newMDB;
+    // (*destSlot) = newMDB;
     destSlot.write().unwrap().cteMDBNode = newMDB;
     mdb_node_ptr_set_mdbNext(&mut srcSlot.write().unwrap().cteMDBNode, Arc::as_ptr(&destSlot) as u64);
     if mdb_node_get_mdbNext(newMDB) != 0u64 {
