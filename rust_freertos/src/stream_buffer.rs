@@ -118,7 +118,7 @@ impl StreamBufferDef {
         self.xLength = BufferSizeBytes;
     }
 }
-
+#[derive(Clone)]
 pub struct StreamBufferHandle(Arc<RwLock<StreamBufferDef>>);
 
 impl From<Weak<RwLock<StreamBufferDef>>> for StreamBufferHandle {
@@ -388,22 +388,25 @@ impl StreamBufferHandle {
             mtCOVERAGE_TEST_MARKER!();
         }
 
-        Return = self.WriteMessageToBuffer(TxData, DataLengthBytes, Space, RequiredSpace);
+        // Return = self.WriteMessageToBuffer(TxData, DataLengthBytes, Space, RequiredSpace);
 
-        if Return > 0 {
-            traceSTREAM_BUFFER_SEND!(unwarp_streambuffer, Return);
+        unwarp_streambuffer.pucBuffer = TxData;
+        unwarp_streambuffer.xTail +=1;
+        unwarp_streambuffer.xLength += 1;
 
-            if (unwarp_streambuffer.BytesInBuffer() >= unwarp_streambuffer.xTriggerLevelBytes) {
-                send_completed(unwarp_streambuffer.deref_mut());
-            } else {
-                mtCOVERAGE_TEST_MARKER!();
-            }
+
+
+        
+        traceSTREAM_BUFFER_SEND!();
+
+        if (unwarp_streambuffer.BytesInBuffer() >= unwarp_streambuffer.xTriggerLevelBytes) {
+            send_completed(unwarp_streambuffer.deref_mut());
         } else {
             mtCOVERAGE_TEST_MARKER!();
-            traceSTREAM_BUFFER_SEND_FAILED!(unwarp_streambuffer);
         }
 
-        Return
+
+        1
     }
 
     /// Receive to a stream buffer from a task.
@@ -426,7 +429,7 @@ impl StreamBufferHandle {
     ///     write as many bytes as possible.
     pub fn StreamBufferReceive(
         &mut self,
-        mut RxData: u8,
+        RxData: &mut u8,
         BufferLengthBytes: UBaseType,
         TicksToWait: TickType,
     ) -> UBaseType {
@@ -498,9 +501,11 @@ impl StreamBufferHandle {
             BytesAvailable = self.BytesInBuffer();
         }
 
+        let mut tmp:u8;
+
         if BytesAvailable > BytesToStoreMessageLength {
             ReceiveLength =
-                self.ReadMessageFromBuffer(&mut RxData, BufferLengthBytes, BytesAvailable);
+                self.ReadMessageFromBuffer(RxData, BufferLengthBytes, BytesAvailable);
 
             if ReceiveLength != 0 {
                 receive_completed!(unwarp_streambuffer);
@@ -528,37 +533,37 @@ impl StreamBufferHandle {
     /// * The Resource Code : stream_buffer.c 721-760
     /// * Return
     ///     The number of bytes written to the stream buffer.
-    fn WriteMessageToBuffer(
-        &self,
-        TxData: u8,
-        mut DataLengthBytes: UBaseType,
-        Space: UBaseType,
-        RequiredSpace: UBaseType,
-    ) -> UBaseType {
-        let mut unwarp_streambuffer = get_streambuffer_from_handle_mut!(self);
+    // fn WriteMessageToBuffer(
+    //     &self,
+    //     TxData: u8,
+    //     mut DataLengthBytes: UBaseType,
+    //     Space: UBaseType,
+    //     RequiredSpace: UBaseType,
+    // ) -> UBaseType {
+    //     let mut unwarp_streambuffer = get_streambuffer_from_handle_mut!(self);
 
-        let mut NextHead = unwarp_streambuffer.xHead;
+    //     let mut NextHead = unwarp_streambuffer.xHead;
 
-        let bytesinstore = sbBYTES_TO_STORE_MESSAGE_LENGTH!();
+    //     let bytesinstore = sbBYTES_TO_STORE_MESSAGE_LENGTH!();
 
-        if (unwarp_streambuffer.ucFlag & sbFLAGS_IS_MESSAGE_BUFFER) != 0 {
-            if Space >= RequiredSpace {
-                unwarp_streambuffer.pucBuffer = TxData;
-            } else {
-                DataLengthBytes = 0;
-            }
-        } else {
-            if DataLengthBytes >= Space {
-                DataLengthBytes = Space;
-            }
-        }
+    //     if (unwarp_streambuffer.ucFlag & sbFLAGS_IS_MESSAGE_BUFFER) != 0 {
+    //         if Space >= RequiredSpace {
+    //             unwarp_streambuffer.pucBuffer = TxData;
+    //         } else {
+    //             DataLengthBytes = 0;
+    //         }
+    //     } else {
+    //         if DataLengthBytes >= Space {
+    //             DataLengthBytes = Space;
+    //         }
+    //     }
 
-        if DataLengthBytes != 0 {
-            unwarp_streambuffer.pucBuffer = TxData;
-        }
+    //     if DataLengthBytes != 0 {
+    //         unwarp_streambuffer.pucBuffer = TxData;
+    //     }
 
-        DataLengthBytes
-    }
+    //     DataLengthBytes
+    // }
 
     /// A function to help read a stream buffer to a task.
     ///
