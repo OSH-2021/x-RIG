@@ -40,7 +40,7 @@ extern "C" {
     fn finaliseCap(cap: cap_t, final_: bool_t, exposed: bool_t) -> finaliseCap_ret_t;
     fn sameRegionAs(cap_a: cap_t, cap_b: cap_t) -> bool_t;
     fn sameObjectAs(cap_a: cap_t, cap_b: cap_t) -> bool_t;
-    fn cancelBadgedSends(epptr: Arc<endpoint_t>, badge: u64);
+    fn cancelBadgedSends(epptr: *mut endpoint_t, badge: u64);
     fn maskCapRights(cap_rights: seL4_CapRights_t, cap: cap_t) -> cap_t;
     fn kprintf(format: *const u8, ...) -> u64;
     fn puts(str: *const u8) -> u64;
@@ -80,7 +80,7 @@ pub unsafe fn decodeCNodeInvocation(
     if invLabel >= invocation_label::CNodeCopy as u64
         && invLabel <= invocation_label::CNodeMutate as u64
     {
-        if length < 4 || Arc::as_ptr(&excaps.excaprefs[0]) as u64 == 0u64 {
+        if length < 4 || excaps.excaprefs[0] as u64 == 0u64 {
             userError!("CNode Copy/Mint/Move/Mutate: Truncated message.");
             current_syscall_error.type_ = seL4_Error::seL4_TruncatedMessage as u64;
             return exception::EXCEPTION_SYSCALL_ERROR as u64;
@@ -205,7 +205,7 @@ pub unsafe fn decodeCNodeInvocation(
         current_task.set_state(_thread_state::Restart);
         return invokeCNodeCancelBadgedSends(destCap);
     } else if invLabel == invocation_label::CNodeRotate as u64 {
-        if length < 8 || Arc::as_ptr(&excaps.excaprefs[0]) as u64 == 0u64 || Arc::as_ptr(&excaps.excaprefs[1]) as u64 == 0u64 {
+        if length < 8 || excaps.excaprefs[0] as u64 == 0u64 || excaps.excaprefs[1] as u64 == 0u64 {
             current_syscall_error.type_ = seL4_Error::seL4_TruncatedMessage as u64;
             return exception::EXCEPTION_SYSCALL_ERROR as u64;
         }
@@ -285,8 +285,8 @@ pub unsafe fn invokeCNodeDelete(destSlot: Arc<RwLock<cte_t>>) -> u64 {
 pub unsafe fn invokeCNodeCancelBadgedSends(cap: cap_t) -> u64 {
     let badge = cap_endpoint_cap_get_capEPBadge(cap);
     if badge != 0u64 {
-        let ep = Arc::from_raw(cap_endpoint_cap_get_capEPPtr(cap) as *mut endpoint_t);
-        cancelBadgedSends(ep, badge);
+        // let ep = Arc::from_raw(cap_endpoint_cap_get_capEPPtr(cap) as *mut endpoint_t);
+        cancelBadgedSends(cap_endpoint_cap_get_capEPPtr(cap) as *mut endpoint_t, badge);
     }
     0u64
 }

@@ -24,6 +24,7 @@ pub const seL4_TCBBits: u64 = 11;
 
 
 //  capability
+#[repr(C)]
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct cap_t {
     pub words: [u64; 2],
@@ -352,7 +353,7 @@ pub struct pte_range {
     length: word_t,
 }
 pub type pte_range_t = pte_range;
-pub type cte_ptr_t = Arc<cte_t>;
+pub type cte_ptr_t = *mut cte_t;
 
 const seL4_MsgExtraCapBits: usize = 2;
 pub const seL4_MsgMaxExtraCaps: usize = (1usize << seL4_MsgExtraCapBits) - 1;
@@ -498,7 +499,7 @@ pub struct deriveCap_ret_t {
     pub status: u64,
     pub cap: cap_t,
 }
-
+#[repr(C)]
 #[derive(Copy, Clone)]
 pub struct finaliseCap_ret_t {
     pub remainder: cap_t,

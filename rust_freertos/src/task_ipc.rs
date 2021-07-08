@@ -44,7 +44,7 @@ pub unsafe fn lookupExtraCaps(
 ) -> u64 {
     let thread_ptr = get_ptr_from_handle!(thread);
     if bufferPtr as u64 == 0u64 {
-        current_extra_caps.excaprefs[0] = Arc::from_raw(0u64 as *mut cte_t);
+        current_extra_caps.excaprefs[0] = 0u64 as *mut cte_t;
         return 0u64;
     }
     let length = seL4_MessageInfo_get_extraCaps(info);
