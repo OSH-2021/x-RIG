@@ -24,10 +24,10 @@ extern "C" {
     static mut ksReadyQueues: [tcb_queue_t; 256];   // TODO -> READY_TASK_LISTS
     static mut ksReadyQueuesL1Bitmap: [u64; 1];
     static mut ksReadyQueuesL2Bitmap: [[u64; L2_BITMAP_SIZE]; 1];
-    static mut current_extra_caps: extra_caps_t;
-    static mut current_syscall_error: syscall_error_t;
-    static mut current_fault: seL4_Fault_t;
-    static mut current_lookup_fault: lookup_fault_t;
+    pub static mut current_extra_caps: extra_caps_t;
+    pub static mut current_syscall_error: syscall_error_t;
+    pub static mut current_fault: seL4_Fault_t;
+    pub static mut current_lookup_fault: lookup_fault_t;
     pub fn getRestartPC(thread: *mut tcb_t) -> u64;
     pub fn setNextPC(thread: *mut tcb_t, v: u64);
     pub fn lookupIPCBuffer(isReceiver: bool, thread: *mut tcb_t) -> *mut u64;
@@ -125,7 +125,7 @@ pub struct task_control_block {
     fault_handler : UBaseType, // used only once in qwq
     ipc_buffer : UBaseType, // 总觉得这个和stream buffer很像
     pub registers : [word_t; n_contextRegisters],
-    pub ctable: Arc<RwLock<CTable>>,
+    pub ctable: CTable,
 }
 
 // pub unsafe fn suspend(target: *mut tcb_t) {
@@ -192,7 +192,7 @@ impl task_control_block {
             max_ctrl_prio: configMAX_PRIORITIES!(),
             ipc_buffer: 0,
             registers : [0; n_contextRegisters],
-            ctable: Arc::new(RwLock::new((CTable {
+            ctable: CTable {
                 caps: [cte_t {
                     cap: cap_t {
                         words: [0, 0]
@@ -201,7 +201,7 @@ impl task_control_block {
                         words: [0, 0]
                     }
                 }; MAX_CSlots]
-            }))),
+            },
         }
     }
 
@@ -552,6 +552,7 @@ pub fn initialize_task_list () {
 /// * Implemented by: Fan Jinhao
 ///
 #[derive(Clone)]
+// this is the .0 method (it's a one-valued tuple)
 pub struct TaskHandle(pub Arc<RwLock<TCB>>);
 
 impl PartialEq for TaskHandle {

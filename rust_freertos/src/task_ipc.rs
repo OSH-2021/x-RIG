@@ -14,7 +14,7 @@ extern "C" {
 }
 
 impl TaskHandle {
-    pub unsafe fn setupCallerCap(sender: &mut Self, receiver: &mut Self) {
+    pub unsafe fn setupCallerCap(sender: Self, receiver: Self) {
         // setThreadState(sender, _thread_state::BlockedOnReply);
         let sender_ptr = get_ptr_from_handle!(sender);
         let receiver_ptr = get_ptr_from_handle!(receiver);
@@ -31,7 +31,7 @@ impl TaskHandle {
         );
     }
 
-pub unsafe fn deleteCallerCap(receiver: &mut Self) {
+pub unsafe fn deleteCallerCap(receiver: Self) {
     let receiver_ptr = get_ptr_from_handle!(receiver);
     let callerSlot = tcb_ptr_cte_ptr(receiver_ptr, tcb_cnode_index::tcbCaller as u64);
     cteDeleteOne(Arc::new(RwLock::new(*callerSlot)));
@@ -39,13 +39,13 @@ pub unsafe fn deleteCallerCap(receiver: &mut Self) {
 
 // pub unsafe fn lookupExtraCaps(
 pub unsafe fn lookupExtraCaps(
-    thread: &mut Self,
+    thread: Self,
     bufferPtr: *mut u64,
     info: seL4_MessageInfo_t,
 ) -> u64 {
     let thread_ptr = get_ptr_from_handle!(thread);
     if bufferPtr as u64 == 0u64 {
-        current_extra_caps.excaprefs[0] = 0u64 as *mut cte_t;
+        current_extra_caps.excaprefs[0] = Box::from_raw(null_mut());
         return 0u64;
     }
     let length = seL4_MessageInfo_get_extraCaps(info);
@@ -57,11 +57,11 @@ pub unsafe fn lookupExtraCaps(
             current_fault = seL4_Fault_CapFault_new(cptr, 0u64);
             return lu_ret.status;
         }
-        current_extra_caps.excaprefs[i] = Arc::as_ptr(&lu_ret.slot) as *mut cte_t;
+        current_extra_caps.excaprefs[i] = lu_ret.slot;
         i += 1;
     }
     if i < seL4_MsgMaxExtraCaps {
-        current_extra_caps.excaprefs[i] = 0u64 as *mut cte_t;
+        current_extra_caps.excaprefs[i] = Box::from_raw(null_mut());
     }
     0u64
 }
