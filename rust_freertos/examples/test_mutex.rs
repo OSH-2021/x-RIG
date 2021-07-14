@@ -6,6 +6,10 @@ use rust_freertos::semaphore::Semaphore;
 use rust_freertos::*;
 use simplelog::*;
 use std::sync::Arc;
+#[cfg(feature = "configUSE_CAPS")]
+use rust_freertos::task_control_cap::*;
+#[cfg(not(feature = "configUSE_CAPS"))]
+use rust_freertos::task_control::*;
 
 fn main() {
     let _ = TermLogger::init(LevelFilter::Trace, Config::default());
@@ -69,15 +73,15 @@ fn main() {
             }
         }
     };
-    let _task0 = task_control::TCB::new()
+    let _task0 = TCB::new()
         .name("Task0")
         .priority(4)
         .initialise(task0);
-    let _task1 = task_control::TCB::new()
+    let _task1 = TCB::new()
         .name("Task1")
         .priority(3)
         .initialise(task1);
-    let _task12 = task_control::TCB::new()
+    let _task12 = TCB::new()
         .name("Task2")
         .priority(3)
         .initialise(|| loop{});

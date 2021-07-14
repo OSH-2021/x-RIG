@@ -2,34 +2,42 @@
 - [结题报告](#结题报告)
   - [项目简介](#项目简介)
   - [背景和立项依据](#背景和立项依据)
-    - [项目背景](#背景)
-    - [立项依据](#立项依据)
-      - [版本更新](#版本更新)
-      - [seL-4](#sel-4)
-        - [seL4 Capability与FreeRTOS的关系](#sel4-capability与freertos的关系)
-        - [CSpace](#cspace)
-        - [Threads](#threads)
-          - [scheduling contexts](#scheduling-contexts)
-          - [异常](#异常)
-        - [Notification](#notification)
-        - [Fault](#fault)
-          - [Capability Fault](#capability-fault)
-          - [未知系统调用](#未知系统调用)
-          - [用户异常](#用户异常)
-          - [调试](#调试)
-          - [Page Fault](#page-fault)
-        - [中断](#中断)
-        - [I/O](#io)
-      - [Rust](#Rust)
+    - [项目背景](#项目背景)
+    - [freertos版本更新](#freertos版本更新)
+    - [seL-4](#sel-4)
+      - [seL4 Capability与FreeRTOS的关系](#sel4-capability与freertos的关系)
+      - [cspace](#cspace)
+      - [Threads](#threads)
+      - [scheduling contexts](#scheduling-contexts)
+      - [异常](#异常)
+      - [Notification](#notification)
+      - [Fault](#fault)
+      - [Capability Fault](#capability-fault)
+      - [未知系统调用](#未知系统调用)
+      - [用户异常](#用户异常)
+      - [调试](#调试)
+      - [Page Fault](#page-fault)
+      - [中断](#中断)
+    - [Rust](#rust)
+      - [内存安全](#内存安全)
+      - [Unsafe](#unsafe)
+      - [FFI(Foreign Function Interface)](#ffiforeign-function-interface)
+      - [条件编译](#条件编译)
   - [设计思路](#设计思路)
-    - [stream buffer](#stream_buffer)
-    - [capability](#capability)
-  - [成果演示](#成果展示)
-    - [stream buffer](#stream_buffer)
+      - [streambuffer](#streambuffer)
+      - [capability](#capability)
+        - [TCB](#tcb)
+        - [CNode](#cnode)
+        - [CSpace](#cspace-1)
+        - [types](#types)
+  - [成果演示](#成果演示)
+      - [streambuffer](#streambuffer-1)
+        - [测试方法](#测试方法)
   - [总结](#总结)
-    - [项目特色](#项目特色)
-    - [反思](#反思)
-    - [展望](#展望)
+      - [项目特色](#项目特色)
+      - [学习成果](#学习成果)
+      - [反思](#反思)
+      - [展望](#展望)
   - [致谢](#致谢)
   - [参考文献](#参考文献)
 
@@ -42,11 +50,11 @@ RIG小组完成基于rust-freertos的版本更迭和改进，尝试使rust-freer
 + 2020年5月7日工信部发布《关于深入推进移动物联网全面发展的通知》，提出建立NB-IoT（窄带物联网）、4G和5G协同发展的移动物联网综合生态体系。作为实时性嵌入式操作系统市场占有率前三的freertos也拥有广泛的应用前景。
 + 在调研过程中，我们发现freertos缺乏一定的安全性保护，而同为实时性操作系统的sel-4却已经完成了形式化安全性验证，因此我们想要融入一部分sel-4的安全特性到freertos，以期望增强其安全性。
 
-### 版本更新
-2019年rust-freertos小组完成9.0版本的rust改写，而在2021年freertos已经推出了10.0版本，新增加了一些模块，我们完成了streambuffer的rust的改写
+### freertos版本更新
+2019年rust-freertos小组完成9.0版本的rust改写，而在2021年freertos已经推出了10.0版本，新增加了一些模块，比如stream buffer模块
 
 ### seL-4
-##### seL4 Capability与FreeRTOS的关系
+#### seL4 Capability与FreeRTOS的关系
 [research.md](research.md)中介绍了seL4的kernel object以及capbilities
 
 其中各个object大致对应的FreeRTOS部分为
@@ -57,8 +65,8 @@ RIG小组完成基于rust-freertos的版本更迭和改进，尝试使rust-freer
 | Thread Control Block(TCB) | task control block(task_control.rs)                               |
 | scheduling context        | task schedule(kernel.rs)                                          |
 | Interrupt object          | queue, C library                                                  |
-| Notification              | Notification(目前未实现)                                          |
-| CSpace                    | 目前未实现                                                        |
+| Notification              | Notification                                                      |
+| CSpace                    | FreeRTOS中没有                                                    |
 
 
 > 其他如Untyped Memory和CNode为capability机制特有的，或者FreeRTOS不存在这部分，如VSpace
@@ -68,7 +76,7 @@ RIG小组完成基于rust-freertos的版本更迭和改进，尝试使rust-freer
 以下如果没有特殊说明，都是在seL4中的实现
 
 seL4中主要采用线程的概念，与FreeRTOS采用的task类似
-##### cspace
+#### cspace
 seL4通过在满足`kernel`的内存需求之后，通过`Untyped Memory object`分配给`initial thread`，然后之后的子线程可以通过`retype untyped memory`来实现object类型的转换
 
 
@@ -92,7 +100,7 @@ TCB(thread control block)
 - CSpace & VSpace(shared with other thread)
 - IPC buffer to transfer caps
 
-##### scheduling contexts
+#### scheduling contexts
 
 -   (budgets, period) - (b, p)
 -   RR scheduling
@@ -102,7 +110,7 @@ TCB(thread control block)
 
 passive thread没有scheduling contexts
 
-##### 异常
+#### 异常
 
 分为标准异常和超时异常
 
@@ -125,7 +133,7 @@ passive thread没有scheduling contexts
 线程的操作可能导致错误。错误被传递给线程的错误处理程序，以便它可以采取适当的操作。错误类型在消息标签中的标号字段标识，它是以下类型之一： ``seL4_Fault_CapFault``, ``seL4_Fault_VMFault``, ``seL4_Fault_UnknownSyscall``, ``seL4_Fault_UserException``, ``seL4_Fault_DebugException``, ``seL4_Fault_TimeoutFault`` 或 ``seL4_Fault_NullFault``(表示没有发生错误，这是一条正常的IPC消息)。
 
 错误的传递方式是模拟来自出错线程的Call调用。这意味着要发送错误消息，负责错误处理的端点能力必须具有写权限，并有``Grant``或``GrantReply``权限。如果不是这样，就会发生二次错误(通常情况下线程只是挂起)。
-##### Capability Fault
+#### Capability Fault
 cap错误可能发生在两个地方。首先，当seL4_Call()或seL4_Send()系统调用引用的cap查找失败时(对无效cap调用seL4_NBSend是静默失败)，就会发生cap错误。在这种情况下，发生错误的cap可能是正引用的 cap，也可能是在IPC缓冲区caps字段中传递的额外cap。
 
 其次，当调用seL4_Recv()或seL4_NBRecv()时，引用不存在的cap，引用的不是端点或通知cap，或者是没有接收权限，都会导致发生cap错误。
@@ -138,18 +146,18 @@ cap错误可能发生在两个地方。首先，当seL4_Call()或seL4_Send()系�
 | cap地址                      | seL4_CapFault_Addr              |
 | 是否发生在接收阶段(1是，0否) | seL4_CapFault_InRecvPhase       |
 | 查找失败信息描述             | seL4_CapFault_LookupFailureType |
-##### 未知系统调用
+#### 未知系统调用
 当线程使用seL4未知的``系统调用数``执行系统调用时，会发生此错误。出错线程的寄存器设置被传递给线程的错误处理程序，以便于，如在虚拟化应用场景时模拟一个系统调用。
 
 对错误IPC的响应允许重新启动出错线程和/或修改其寄存器。如果应答的消息``标号``为0，则线程将重新启动。此外，如果消息长度非零，则会更新发生错误的线程寄存器设置。在这种情况下，更新的寄存器数量由消息标签中的length字段标识。
-##### 用户异常
+#### 用户异常
 用户异常用于分发架构定义的异常。例如，如果用户线程试图将一个数字除以0，则可能发生这样的异常。
-##### 调试
+#### 调试
 调试异常用于向线程传递跟踪和调试相关事件，如：断点、监视点、跟踪事件、指令性能采样事件，等等。内核设置了 ``CONFIG_HARDWARE_DEBUG_API`` 后就可以用上述事件支撑用户空间线程。
 
 内核为用户空间线程提供了硬件单步执行的支持，为此引入了 ``seL4_TCB_ConfigureSingleStepping`` 系统调用。
 
-##### Page Fault
+#### Page Fault
 线程可能发生页错误，响应错误IPC可以重启出错线程。IPC消息内容在下表给出。
 
 | 含义                                      | IPC缓冲区位置              |
@@ -232,7 +240,45 @@ fn on_32bit_unix() {
 #### streambuffer
 //TODO
 #### capability
-//TODO
+
+##### TCB
+
+由于在Rust中较难支持指针，因此我们选择在TCB中添加数组来支持cap的查找
+
+```
+struct task_control_block {
+    //  ...
+    pub ctable: CTable,
+    //  ...
+}
+
+pub struct CTable {
+    pub caps: [cte_t; MAX_CSlots],
+}
+```
+
+另外还添加了`task_state`,`fault_handler`,`max_ctrl_prio`,`ipc_buffer`,`registers`等结构，将seL4中特有的融入到freertos
+
+其中
+- task_state是任务状态
+- fault_handler是错误类型，用数字来表示，具体可以看到`arch_structures_TCB`中的`seL4_Fault_tag_t`
+- ipc_buffer并不是真正的ipc_buffer，而是以`UBaseType`形式存在的64位指针，指向真正的`ipc buffer`
+- registers为寄存器
+
+通过`invokeThread_Control`函数，可以对task handle进行相应域的更新，task handle又会得到`unwrapped_tcb`，对它进行操作得到真正并发地修改数据
+
+##### CNode
+
+主要是`decodeCNodeInvocation`函数，首先检查`invLabel`即要调用的真正函数的信息，不在范围中则返回错误，否则根据buffer中传递的信息，得到目标Slot，根据`invLabel`进行相应的`Copy/Mint/Move/Mutate`操作
+
+##### CSpace
+
+`CSpace`中主要进行的是cap和Slot的查找，主要是通过对`capptr`的解析的循环解析(相当于查页表的方式)，来得到对应位置的`cap`，以此来确定返回cap还是在查找途中或者根据查找结果来返回相应错误`lookupSlot_ret_t`(其他类型大致相同)
+
+##### types
+
+`types.rs`对seL4与FreeRTOS的类型做了相应的对应关系转换
+
 
 ## 成果演示
 #### streambuffer

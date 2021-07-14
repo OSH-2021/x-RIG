@@ -39,7 +39,7 @@ pub unsafe fn deleteCallerCap(receiver: Self) {
 
 // pub unsafe fn lookupExtraCaps(
 pub unsafe fn lookupExtraCaps(
-    thread: Self,
+    thread: &mut Self,
     bufferPtr: *mut u64,
     info: seL4_MessageInfo_t,
 ) -> u64 {

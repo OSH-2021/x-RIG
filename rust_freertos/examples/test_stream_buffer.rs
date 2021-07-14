@@ -1,11 +1,20 @@
-#[macro_use]
+#![allow(unused_extern_crates)]
+#![allow(dead_code)]
+#![allow(unused_macros)]
+#![allow(unused_imports)]
+
 extern crate log;
 extern crate rust_freertos;
 
 use rust_freertos::*;
 use simplelog::*;
+#[cfg(feature = "configUSE_CAPS")]
+use rust_freertos::task_control_cap::*;
+#[cfg(not(feature = "configUSE_CAPS"))]
+use rust_freertos::task_control::*;
 
 
+#[cfg(feature = "configUSE_STREAMBUFFER")]
 fn main() { // test streambuffer
    
 
@@ -55,5 +64,10 @@ fn main() { // test streambuffer
     kernel::task_start_scheduler();
 
 
+
+}
+
+#[cfg(not(feature = "configUES_STREAMBUFFER"))]
+fn main() {
 
 }

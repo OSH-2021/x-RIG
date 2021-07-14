@@ -5,6 +5,7 @@ use crate::task_control_cap::TaskHandle;
 #[cfg(not(feature = "configUSE_CAPS"))]
 use crate::task_control::TaskHandle;
 use crate::*;
+#[cfg(feature = "configUSE_CAPS")]
 use crate::types::*;
 use std::sync::RwLock;
 
@@ -18,6 +19,7 @@ pub static mut NUM_OF_OVERFLOWS: BaseType = 0;
 pub static mut TASK_NUMBER: UBaseType = 0;
 pub static mut NEXT_TASK_UNBLOCK_TIME: TickType = 0;
 pub static mut CURRENT_NUMBER_OF_TASKS: UBaseType = 0;
+#[cfg(feature = "configUSE_CAPS")]
 pub static mut current_syscall_error: syscall_error_t = syscall_error_t {
     invalidArgumentNumber:    0,
     invalidCapNumber:    0,
@@ -27,6 +29,7 @@ pub static mut current_syscall_error: syscall_error_t = syscall_error_t {
     failedLookupWasSource:    0,
     type_:    0,
 };
+#[cfg(feature = "configUSE_CAPS")]
 pub static mut current_lookup_fault: lookup_fault_t = lookup_fault_t {
     words: [0, 0]
 };

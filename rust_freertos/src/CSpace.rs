@@ -9,6 +9,7 @@
 use crate::arch_structures_TCB::*;
 use crate::task_control_cap::*;
 use crate::types::*;
+use std::io::Take;
 use std::sync::{ Arc, RwLock };
 use std::ptr::*;
 use std::ptr::null_mut;
@@ -49,36 +50,34 @@ pub struct resolveAddressBits_ret_t {
     pub bitsRemaining: u64,
 }
 
-extern "C" {
+
+pub unsafe fn lookupCap(thread: &mut TaskHandle, capptr: u64) -> lookupCap_ret_t {
+    let mut lu_ret = lookupSlot(thread, capptr);
+    if lu_ret.status != 0u64 {
+        return lookupCap_ret_t {
+            status: lu_ret.status,
+            cap: cap_null_cap_new(),
+        };
+    }
+    lookupCap_ret_t {
+        status: 0u64,
+        cap: (*lu_ret.slot).cap,
+    }
 }
 
-    pub unsafe fn lookupCap(thread: TaskHandle, capptr: u64) -> lookupCap_ret_t {
-        let mut lu_ret = lookupSlot(thread, capptr);
-        if lu_ret.status != 0u64 {
-            return lookupCap_ret_t {
-                status: lu_ret.status,
-                cap: cap_null_cap_new(),
-            };
-        }
-        lookupCap_ret_t {
-            status: 0u64,
-            cap: (*lu_ret.slot).cap,
-        }
+pub unsafe fn lookupSlot(thread: &mut TaskHandle, capptr: u64) -> lookupSlot_raw_ret_t {
+    // let thread_ptr = get_ptr_from_handle!(thread);
+    let threadRoot : cap_t = thread.0.clone().read().unwrap().ctable.caps[0].cap;
+    // (*tcb_ptr_cte_ptr(thread_ptr, tcb_cnode_index::tcbCTable as u64)).cap;
+    let res_ret = resolveAddressBits(thread, threadRoot, capptr, wordBits);
+    lookupSlot_raw_ret_t {
+        status: res_ret.status,
+        slot: res_ret.slot,
     }
-
-    pub unsafe fn lookupSlot(thread: TaskHandle, capptr: u64) -> lookupSlot_raw_ret_t {
-        // let thread_ptr = get_ptr_from_handle!(thread);
-        let threadRoot : cap_t = thread.0.clone().read().unwrap().ctable.caps[0].cap;
-        // (*tcb_ptr_cte_ptr(thread_ptr, tcb_cnode_index::tcbCTable as u64)).cap;
-        let res_ret = resolveAddressBits(thread, threadRoot, capptr, wordBits);
-        lookupSlot_raw_ret_t {
-            status: res_ret.status,
-            slot: res_ret.slot,
-        }
-    }
+}
 
 #[no_mangle]
-pub unsafe fn lookupCapAndSlot(thread: TaskHandle, capptr: u64) -> lookupCapAndSlot_ret_t {
+pub unsafe fn lookupCapAndSlot(thread: &mut TaskHandle, capptr: u64) -> lookupCapAndSlot_ret_t {
     let lu_ret = lookupSlot(thread, capptr);
     if lu_ret.status != 0u64 {
         return lookupCapAndSlot_ret_t {
@@ -97,7 +96,7 @@ pub unsafe fn lookupCapAndSlot(thread: TaskHandle, capptr: u64) -> lookupCapAndS
 
 #[no_mangle]
 pub unsafe fn lookupSlotForCNodeOp(
-    thread: TaskHandle,
+    thread: &mut TaskHandle,
     isSource: bool_t,
     root: cap_t,
     capptr: u64,
@@ -147,28 +146,30 @@ pub unsafe fn lookupSlotForCNodeOp(
     }
 }
 
-// #[no_mangle]
-// pub unsafe fn lookupSourceSlot(
-//     root: cap_t,
-//     capptr: u64,
-//     depth: u64,
-// ) -> lookupSlot_ret_t {
-//     lookupSlotForCNodeOp(1u64, root, capptr, depth)
-// }
+#[no_mangle]
+pub unsafe fn lookupSourceSlot(
+    thread: &mut TaskHandle,
+    root: cap_t,
+    capptr: u64,
+    depth: u64,
+) -> lookupSlot_ret_t {
+    lookupSlotForCNodeOp(thread, 1u64, root, capptr, depth)
+}
 
-// #[no_mangle]
-// pub unsafe fn lookupTargetSlot(
-//     root: cap_t,
-//     capptr: u64,
-//     depth: u64,
-// ) -> lookupSlot_ret_t {
-//     lookupSlotForCNodeOp(0u64, root, capptr, depth)
-// }
+#[no_mangle]
+pub unsafe fn lookupTargetSlot(
+    thread: &mut TaskHandle,
+    root: cap_t,
+    capptr: u64,
+    depth: u64,
+) -> lookupSlot_ret_t {
+    lookupSlotForCNodeOp(thread, 0u64, root, capptr, depth)
+}
 
-// #[no_mangle]
-// pub unsafe fn lookupPivotSlot(root: cap_t, capptr: u64, depth: u64) -> lookupSlot_ret_t {
-//     lookupSlotForCNodeOp(1u64, root, capptr, depth)
-// }
+#[no_mangle]
+pub unsafe fn lookupPivotSlot(thread:&mut TaskHandle, root: cap_t, capptr: u64, depth: u64) -> lookupSlot_ret_t {
+    lookupSlotForCNodeOp(thread, 1u64, root, capptr, depth)
+}
 
 macro_rules! MASK {
     ($x:expr) => {
@@ -178,7 +179,7 @@ macro_rules! MASK {
 
 #[no_mangle]
 pub unsafe fn resolveAddressBits(
-    handle: TaskHandle,
+    handle: &mut TaskHandle,
     mut nodeCap: cap_t, // thread root
     capptr: u64,
     mut n_bits: u64,

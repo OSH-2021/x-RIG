@@ -4,6 +4,9 @@ use crate::config::*;
 use crate::kernel::*;
 use crate::list::list_remove;
 use crate::port::*;
+#[cfg(feature = "configUSE_CAPS")]
+use crate::task_control_cap::*;
+#[cfg(not(feature = "configUSE_CAPS"))]
 use crate::task_control::*;
 use crate::trace::*;
 use crate::*;

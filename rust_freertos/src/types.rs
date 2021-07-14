@@ -361,8 +361,8 @@ pub type cte_ptr_t = Box<cte_t>;
 const seL4_MsgExtraCapBits: usize = 2;
 pub const seL4_MsgMaxExtraCaps: usize = (1usize << seL4_MsgExtraCapBits) - 1;
 
-#[repr(C)]
 #[derive(Clone)]
+#[repr(C)]
 pub struct extra_caps {
     pub excaprefs: [cte_ptr_t; seL4_MsgMaxExtraCaps],
 }
@@ -587,7 +587,7 @@ pub enum invocation_label {
 }
 
 //  cap
-pub unsafe fn deriveCap(slot: Arc<cte_t>, cap: cap_t) -> deriveCap_ret_t {
+pub unsafe fn deriveCap(slot: Box<cte_t>, cap: cap_t) -> deriveCap_ret_t {
     if isArchCap(cap) != 0u64 {
         // return Arch_deriveCap(slot, cap);    //  TODO extern "C"
     }

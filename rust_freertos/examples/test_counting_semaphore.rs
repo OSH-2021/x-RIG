@@ -3,6 +3,10 @@ extern crate log;
 extern crate rust_freertos;
 
 use rust_freertos::*;
+#[cfg(feature = "configUSE_CAPS")]
+use rust_freertos::task_control_cap::*;
+#[cfg(not(feature = "configUSE_CAPS"))]
+use rust_freertos::task_control::*;
 use std::sync::Arc;
 use simplelog::*;
 use semaphore::Semaphore;
@@ -102,15 +106,15 @@ fn main() {
         // loop {
         // }
     };
-    let _task0 = task_control::TCB::new()
+    let _task0 = TCB::new()
         .name("Task0")
         .priority(3)
         .initialise(task_want_resources0);
-    let _task1 = task_control::TCB::new()
+    let _task1 = TCB::new()
         .name("Task1")
         .priority(3)
         .initialise(task_want_resources1);
-    let _task2 = task_control::TCB::new()
+    let _task2 = TCB::new()
         .name("Task2")
         .priority(3)
         .initialise(task_want_resources2);

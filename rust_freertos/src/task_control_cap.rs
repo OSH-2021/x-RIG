@@ -1,3 +1,4 @@
+#[allow(non_camel_case_types)]
 use crate::kernel::*;
 use crate::ffi::*;
 use crate::list::*;
@@ -48,11 +49,11 @@ extern "C" {
 #[derive(Copy, Clone, Debug)]
 #[repr(u8)]
 pub enum TaskState {
-    running = 0,
-    ready = 1,
-    blocked = 2,
-    suspended = 3,
-    deleted = 4,
+    running,
+    ready,
+    blocked,
+    suspended,
+    deleted,
     InActive,                           //  seL4
     Restart,                            //  seL4
     BlockedOnReceive,                   //  seL4
@@ -76,6 +77,7 @@ pub enum updated_top_priority {
 }
 
 
+#[repr(C)]
 #[derive(Debug)]
 pub struct task_control_block {
     //* basic information
@@ -114,16 +116,15 @@ pub struct task_control_block {
 
     // #[cfg(feature = "configUSE_CAPS")]
     // arch : ???,  //  暂时先不考虑? arch里面有很多register,单独拿出来了
-    task_state : TaskState, // TODO: add ThreadStateType | translated to task (from thread)
     //  TODO
-    // bound_notification : Option<Notification> // notifications are not necessarily bound to tcb freertos已经有notification了我们还要写吗？
+    // bound_notification : Option<Notification> 
     // task_fault : FaultType,
     // lookup_failure : LookupFault,
     // domain : Domain,
-    max_ctrl_prio : UBaseType, // same as freertos prio
-    // time_slice : UBaseType, // freertos应该也有内置的时间片吧 在哪？
-    fault_handler : UBaseType, // used only once in qwq
-    ipc_buffer : UBaseType, // 总觉得这个和stream buffer很像
+    task_state : TaskState, 
+    max_ctrl_prio : UBaseType, 
+    fault_handler : UBaseType,
+    ipc_buffer : UBaseType,
     pub registers : [word_t; n_contextRegisters],
     pub ctable: CTable,
 }
@@ -911,6 +912,7 @@ impl TaskHandle {
             }
             if self == &get_current_task_handle!() {
                 // rescheduleRequired();
+                // TODO use freertos's scheduler
             }
         }
         0u64

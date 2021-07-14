@@ -48,8 +48,8 @@ extern "C" {
     fn Arch_postCapDeletion(cap: cap_t); //  where to place? TODO
 }
 
-#[no_mangle]
 pub unsafe fn decodeCNodeInvocation(
+    thread: &mut TaskHandle,
     invLabel: u64,
     length: u64,
     cap: cap_t,
@@ -70,7 +70,7 @@ pub unsafe fn decodeCNodeInvocation(
     }
     let index = getSyscallArg(0, buffer);
     let w_bits = getSyscallArg(1, buffer);
-    let mut lu_ret = lookupTargetSlot(cap, index, w_bits);
+    let mut lu_ret = lookupTargetSlot(thread, cap, index, w_bits);
     if lu_ret.status != 0u64 {
         userError!("CNode operation: Target slot invalid.");
         return lu_ret.status;
@@ -80,7 +80,7 @@ pub unsafe fn decodeCNodeInvocation(
     if invLabel >= invocation_label::CNodeCopy as u64
         && invLabel <= invocation_label::CNodeMutate as u64
     {
-        if length < 4 || Box::into_raw(excaps.excaprefs[0]) as u64 == 0u64 {
+        if length < 4 || Box::into_raw(excaps.excaprefs[0].clone()) as u64 == 0u64 {
             userError!("CNode Copy/Mint/Move/Mutate: Truncated message.");
             current_syscall_error.type_ = seL4_Error::seL4_TruncatedMessage as u64;
             return exception::EXCEPTION_SYSCALL_ERROR as u64;
@@ -95,7 +95,7 @@ pub unsafe fn decodeCNodeInvocation(
             userError!("CNode Copy/Mint/Move/Mutate: Destination not empty.");
             return status;
         }
-        lu_ret = lookupSourceSlot(srcRoot, srcIndex, srcDepth);
+        lu_ret = lookupSourceSlot(thread, srcRoot, srcIndex, srcDepth);
         if lu_ret.status != 0u64 {
             userError!("CNode Copy/Mint/Move/Mutate: Invalid source slot.");
             return lu_ret.status;
@@ -205,7 +205,7 @@ pub unsafe fn decodeCNodeInvocation(
         current_task.set_state(_thread_state::Restart);
         return invokeCNodeCancelBadgedSends(destCap);
     } else if invLabel == invocation_label::CNodeRotate as u64 {
-        if length < 8 || Box::into_raw(excaps.excaprefs[0]) as u64 == 0u64 || Box::into_raw(excaps.excaprefs[1]) as u64 == 0u64 {
+        if length < 8 || Box::into_raw(excaps.excaprefs[0].clone()) as u64 == 0u64 || Box::into_raw(excaps.excaprefs[1].clone()) as u64 == 0u64 {
             current_syscall_error.type_ = seL4_Error::seL4_TruncatedMessage as u64;
             return exception::EXCEPTION_SYSCALL_ERROR as u64;
         }
@@ -217,13 +217,13 @@ pub unsafe fn decodeCNodeInvocation(
         let srcDepth = getSyscallArg(7, buffer);
         let pivotRoot = (*excaps.excaprefs[0]).cap;
         let srcRoot = (*excaps.excaprefs[1]).cap;
-        let mut lu_ret = lookupSourceSlot(srcRoot, srcIndex, srcDepth);
+        let mut lu_ret = lookupSourceSlot(thread, srcRoot, srcIndex, srcDepth);
         if lu_ret.status != 0u64 {
             return lu_ret.status;
         }
         let srcSlot = lu_ret.slot;
         let src_arc_lock = Arc::new(RwLock::new(*srcSlot));
-        lu_ret = lookupPivotSlot(pivotRoot, pivotIndex, pivotDepth);
+        lu_ret = lookupPivotSlot(thread, pivotRoot, pivotIndex, pivotDepth);
         if lu_ret.status != 0u64 {
             return lu_ret.status;
         }
@@ -708,7 +708,7 @@ pub unsafe fn slotCapLongRunningDelete(slot: Arc<RwLock<cte_t>>) -> bool_t {
 }
 
 #[no_mangle]
-pub unsafe fn getReceiveSlots(thread: TaskHandle, buffer: *mut u64) -> Result<Arc<RwLock<cte_t>>, FreeRtosError> {
+pub unsafe fn getReceiveSlots(thread: &mut TaskHandle, buffer: *mut u64) -> Result<Arc<RwLock<cte_t>>, FreeRtosError> {
     let thread_ptr = get_ptr_from_handle!(thread);
     if buffer as u64 == 0u64 {
         return Err(FreeRtosError::Ajkaierdja);
@@ -720,7 +720,7 @@ pub unsafe fn getReceiveSlots(thread: TaskHandle, buffer: *mut u64) -> Result<Ar
         return Err(FreeRtosError::Ajkaierdja);
     }
     let cnode = luc_ret.cap;
-    let lus_ret = lookupTargetSlot(cnode, ct.ctReceiveIndex, ct.ctReceiveDepth);
+    let lus_ret = lookupTargetSlot(thread, cnode, ct.ctReceiveIndex, ct.ctReceiveDepth);
     if lus_ret.status != 0u64 {
         return Err(FreeRtosError::Ajkaierdja);
     }

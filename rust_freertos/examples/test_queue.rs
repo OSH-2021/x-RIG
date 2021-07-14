@@ -6,6 +6,10 @@ use rust_freertos::*;
 use simplelog::*;
 use queue_api::Queue;
 use std::sync::Arc;
+#[cfg(feature = "configUSE_CAPS")]
+use rust_freertos::task_control_cap::*;
+#[cfg(not(feature = "configUSE_CAPS"))]
+use rust_freertos::task_control::*;
 
 fn main() { // test queue
     // 两个任务共享所有权，所以需Arc包装。
@@ -38,11 +42,11 @@ fn main() { // test queue
         }
     };
     // 创建这两个任务。
-    let _sender_task = task_control::TCB::new()
+    let _sender_task = TCB::new()
         .name("Sender")
         .priority(3)
         .initialise(sender);
-    let _receiver_task = task_control::TCB::new()
+    let _receiver_task = TCB::new()
         .name("Receiver")
         .priority(3)
         .initialise(receiver);
