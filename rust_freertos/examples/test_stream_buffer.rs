@@ -1,20 +1,11 @@
-#![allow(unused_extern_crates)]
-#![allow(dead_code)]
-#![allow(unused_macros)]
-#![allow(unused_imports)]
-
+#[macro_use]
 extern crate log;
 extern crate rust_freertos;
 
 use rust_freertos::*;
 use simplelog::*;
-#[cfg(feature = "configUSE_CAPS")]
-use rust_freertos::task_control_cap::*;
-#[cfg(not(feature = "configUSE_CAPS"))]
-use rust_freertos::task_control::*;
 
 
-#[cfg(feature = "configUSE_STREAMBUFFER")]
 fn main() { // test streambuffer
    
 
@@ -25,10 +16,10 @@ fn main() { // test streambuffer
     let _ = TermLogger::init(LevelFilter::Trace, Config::default());
     // 发送数据的任务代码。
     let sender = move || {
-        //for i in 1..11 {
+        for i in 1..11 {
             // send方法的参数包括要发送的数据、最大发送值和 ticks_to_wait
-            sender_buffer.StreamBufferSend(1, 5, pdMS_TO_TICKS!(5));
-        //}
+            sender_buffer.StreamBufferSend(i, 5, pdMS_TO_TICKS!(5));
+        }
         loop {
             
         }
@@ -37,18 +28,20 @@ fn main() { // test streambuffer
     let receiver = move || {
         let mut x :u8 = 0;
         let mut sum = 0;
-        loop {
+         {
             // receive方法的参数只有ticks_to_wait和 最大接受值
             let num = receiver_buffer.StreamBufferReceive(&mut x, 1,pdMS_TO_TICKS!(1000));
             if num > 0{
-                            println!("{}", num);
-                sum += x;
+
+                trace!("The number received:{}", x as u64);
+
             } else {
                 trace!("receive END");
                 // 若等待30ms仍未收到数据，则认为发送结束。
-                assert_eq!(sum, 55);
+                assert_eq!(x, 1);
                 kernel::task_end_scheduler();
             }
+
         }
     };
     //创建这两个任务。
@@ -64,10 +57,5 @@ fn main() { // test streambuffer
     kernel::task_start_scheduler();
 
 
-
-}
-
-#[cfg(not(feature = "configUES_STREAMBUFFER"))]
-fn main() {
 
 }

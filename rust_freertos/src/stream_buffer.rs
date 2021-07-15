@@ -4,9 +4,6 @@ use crate::config::*;
 use crate::kernel::*;
 use crate::list::list_remove;
 use crate::port::*;
-#[cfg(feature = "configUSE_CAPS")]
-use crate::task_control_cap::*;
-#[cfg(not(feature = "configUSE_CAPS"))]
 use crate::task_control::*;
 use crate::trace::*;
 use crate::*;
@@ -399,12 +396,13 @@ impl StreamBufferHandle {
         unwrap_streambuffer.xLength += 1;
 
 
-
+        drop(unwrap_streambuffer);
         
         traceSTREAM_BUFFER_SEND!();
 
-        if (unwrap_streambuffer.BytesInBuffer() >= unwrap_streambuffer.xTriggerLevelBytes) {
-            send_completed(unwrap_streambuffer.deref_mut());
+        if (self.BytesInBuffer() >= self.get_triggerlevelbytes()) {
+            trace!("Bytes in buffer is more than trigger level.");
+            send_completed(self);
         } else {
             mtCOVERAGE_TEST_MARKER!();
         }
@@ -505,7 +503,6 @@ impl StreamBufferHandle {
             BytesAvailable = self.BytesInBuffer();
         }
 
-        let mut tmp:u8;
         // let mut unwrap_streambuffer = get_streambuffer_from_handle_mut!(self);
 
         if BytesAvailable > BytesToStoreMessageLength {
@@ -665,7 +662,10 @@ macro_rules! get_streambuffer_handle_from_option {
     };
 }
 
-pub fn send_completed(stream_buffer: &mut StreamBufferDef) {
+pub fn send_completed(handle: &mut StreamBufferHandle) {
+    
+    let mut stream_buffer = get_streambuffer_from_handle_mut!(handle);
+
     task_suspend_all();
 
     if stream_buffer.xTaskWaitingToReceive.is_some() {
@@ -700,6 +700,9 @@ pub fn send_completed(stream_buffer: &mut StreamBufferDef) {
         taskEXIT_CRITICAL!();
 
         stream_buffer.xTaskWaitingToReceive = None;
+
+        drop(stream_buffer);
+        trace!("The send is over.");
     }
 
     task_resume_all();
@@ -756,7 +759,7 @@ macro_rules! receive_completed {
 #[macro_export]
 macro_rules! sbBYTES_TO_STORE_MESSAGE_LENGTH {
     () => {
-        8
+        1
     };
 }
 
