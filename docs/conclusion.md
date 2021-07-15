@@ -25,6 +25,8 @@
       - [条件编译](#条件编译)
   - [设计思路](#设计思路)
       - [streambuffer](#streambuffer)
+        - [数据结构](#数据结构)
+        - [函数api](#函数api)
       - [capability](#capability)
         - [TCB](#tcb)
         - [CNode](#cnode)
@@ -238,7 +240,53 @@ fn on_32bit_unix() {
 
 ## 设计思路
 #### streambuffer
-//TODO
+
+通过对streambuffer源码分析，可以了解到，streambuffer的代码主要是数据结构的设计与函数api的编写
+
+##### 数据结构
+
+源码中主要有两个数据类型， 一是`streambufferDef`，即对streambuffer本身的定义，二是`streambufferHandle`，即streambuffer的句柄
+
+streambufferDef有如下几个参数
+> xTail, xHead:指向存储区地址的开头与结尾
+> xLength： buffer的大小
+> xTaskWaitingToReceive, xTaskWaitingToSend: buffer 的接受者与发送者
+> xTriggerLevelBytes: 触发等级，当buffer的数据大小大于这个触发等级的时候，就会将数据发给接收者
+> ucFlags：标识这个buff是streambuffer还是messagebuffer，一个是流式数据，一个是数据块数据
+> pucbuffer：指向buffer的指针
+
+
+`streambufferHandle`在c语言源代码是streambufferDef的一个指针
+
+那在项目中streambufferDef可以直接移植，而streambufferHandle的移植需要用rust的智能指针`rwlock`进行封装streambufferDef。
+
+##### 函数api
+
+主要包括了一个数据结构所需要的基本的增删查改的功能，以及作为数据传输工具需要的send与receive函数。
+
+我们只需要对应的移植过来即可。
+
+不过要注意的地方是，由于我们是使用智能指针`rwlock`，在访问的时候需要使用`try_read()`与`try_write()`对其进行访问，
+```
+macro_rules! get_streambuffer_from_handle {
+    ($handle: expr) => {
+        match $handle.0.try_read() {
+            Ok(a) => a,
+            Err(_) => {
+                warn!("Stream Buffer was locked, read failed");
+                panic!("Stream Buffer handle locked!");
+            }
+        }
+    };
+}
+```
+
+随之而来的一个问题是读写锁。
+我们对api进行改动的时候要时刻注意读写锁情况，适时进行释放，以完成无死锁并发。
+
+
+
+
 #### capability
 
 ##### TCB
@@ -283,7 +331,48 @@ pub struct CTable {
 ## 成果演示
 #### streambuffer
 ##### 测试方法
-//补充如何进行测试的以及运行结果（贴图）
+测试我们利用了rust的test功能，调用所写api，完成了streambuffer的发送与接收功能
+```
+let mut sender_buffer = stream_buffer::StreamBufferHandle::
+     StreamBufferGenericCreate(5,1,true ,5);
+
+let mut receiver_buffer = sender_buffer.clone();
+let _ = TermLogger::init(LevelFilter::Trace, Config::default());
+// 发送数据的任务代码。
+let sender = move || {
+    for i in 1..11 {
+        // send方法的参数包括要发送的数据、最大发送值和 ticks_to_wait
+        sender_buffer.StreamBufferSend(i, 5, pdMS_TO_TICKS!(5));
+    }
+    loop {
+        
+    }
+};
+// 接收数据的任务代码。
+let receiver = move || {
+    let mut x :u8 = 0;
+    let mut sum = 0;
+     {
+        // receive方法的参数只有ticks_to_wait和 最大接受值
+        let num = receiver_buffer.StreamBufferReceive(&mut x, 1,pdMS_TO_TICKS!(1000));
+        if num > 0{
+
+            trace!("The number received:{}", x as u64);
+
+        } else {
+            trace!("receive END");
+            // 若等待30ms仍未收到数据，则认为发送结束。
+            assert_eq!(x, 1);
+            kernel::task_end_scheduler();
+        }
+
+    }
+};
+```
+
+测试结果如下
+
+![](files/result.png)
 
 ## 总结
 #### 项目特色
@@ -295,6 +384,8 @@ pub struct CTable {
 + 全面学习了freertos和sel4的框架
 
 #### 反思
+
+
 + 增强时间管理能力
 + 对可行性还要有更加深刻的论证
 + 增加组员之间以及与外部的交流
